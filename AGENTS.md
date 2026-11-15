@@ -3,7 +3,7 @@
 ## Alcance y fases
 
 Lee `PLAN.md` antes de modificar el proyecto. Avanza en orden y deja cada fase
-funcional. El encargo inicial autoriza completar la Fase 0; el globo, los parsers y
+funcional. El encargo inicial comienza por la Fase 0; el globo, los parsers y
 la publicación corresponden a los siguientes hitos. No presentes una maqueta como
 un globo 3D operativo ni datos ficticios como el historial de Alfonso.
 
@@ -64,4 +64,3 @@ real y las instrucciones disponibles.
 - La Fase 0 no importa Timeline ni carga mapas externos; el diseño orbital es SVG.
 - Vite sirve `public/` desde la raíz del repo mediante `publicDir` explícito.
 - Un build local correcto no demuestra que GitHub Actions o Pages hayan pasado.
-

@@ -1,0 +1,12 @@
+{
+  "precision": "city",
+  "datePrecision": "month",
+  "exclusionZones": [],
+  "base": null,
+  "tripDistanceKm": 100,
+  "manualPlaces": [],
+  "publicPlaces": [],
+  "hiddenPlaceIds": [],
+  "hiddenTripIds": [],
+  "tripOverrides": {}
+}
