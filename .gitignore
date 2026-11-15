@@ -1,0 +1,25 @@
+# Privacy: never commit raw location history or local exclusion zones.
+data/raw/
+*.Timeline.json
+Timeline.json
+location-history.json
+Records.json
+Semantic Location History/
+Takeout/
+data/**/*.zip
+data/*.zip
+atlas.config.json
+.env
+.env.*
+!.env.example
+
+# Dependencies, build outputs and local tooling.
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.husky/_/
+*.local
+.DS_Store
+
