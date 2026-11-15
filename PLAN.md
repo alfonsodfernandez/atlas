@@ -176,6 +176,12 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
 - **Pendiente de Alfonso, más adelante:** exportar su historial en su equipo,
   revisar exclusiones y decidir qué lugares permite publicar con más precisión.
   Ninguna de estas decisiones bloquea el andamiaje.
+- **Integración de Fase 0:** la revisión automática ha rechazado el merge de la
+  PR #1 a `main` por exigir una autorización explícita en el chat para modificar
+  la rama por defecto. El documento adjunto pide fusionar las fases verdes, pero
+  el control no lo ha aceptado como autorización suficiente. La implementación
+  está terminada y la CI de push y PR pasa; queda pendiente esa autorización
+  para integrar. No se intentará eludir el bloqueo mediante Git u otro mecanismo.
 
 ## Validación del hito actual
 
