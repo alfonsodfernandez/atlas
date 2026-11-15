@@ -21,7 +21,7 @@ Rama: `fase-0-andamiaje`.
 - [x] Documentar arranque, privacidad, arquitectura y fases.
 - [x] Verificar instalación reproducible con `npm ci` y controles locales.
 - [x] Comprobar E2E de la pantalla inicial en escritorio y móvil.
-- [ ] Confirmar CI verde en GitHub antes de fusionar la fase en `main`.
+- [x] Confirmar CI verde en GitHub antes de fusionar la fase en `main`.
 
 **Criterio de cierre:** `npm ci`, `npm run build` y `npm test` pasan en CI; los
 controles adicionales de privacidad, formato, lint y tipos también están verdes.
@@ -190,6 +190,14 @@ Comprobado en local con Node.js 24 y npm 11:
 - E2E sin errores de consola ni peticiones a servicios externos; sin desbordamiento
   horizontal, también comprobado a 320 px de ancho.
 - Captura real de la pantalla inicial en `docs/images/fase-0.png`.
+- `npm audit`: ninguna vulnerabilidad tras actualizar la resolución de
+  `minimatch` y regenerar el lockfile.
 
-Pendiente de registrar la ejecución de CI y el merge. No se ha verificado ningún
-despliegue público en Fase 0.
+CI completa de GitHub superada el 15 de noviembre de 2026 para `34f5097`:
+[ejecución de CI](https://github.com/alfonsodfernandez/atlas/actions/runs/43740197181).
+La integración de la Fase 0 se registra en la
+[PR #1](https://github.com/alfonsodfernandez/atlas/pull/1); cualquier actualización
+de la rama debe pasar sus comprobaciones antes del merge.
+
+No hay despliegue público en Fase 0. El próximo hito es la Fase 1: Cesium y
+GitHub Pages, manteniendo intactas las barreras de privacidad.
