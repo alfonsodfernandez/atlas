@@ -1,67 +1,92 @@
-// Keep interface copy together so a second locale can be added without changing UI.
+// Keep interface copy together so another locale can be added without changing UI.
 export const texts = {
   es: {
-    skip: 'Saltar al contenido',
+    skip: 'Saltar al globo',
+    brand: 'Atlas, inicio',
     tagline: 'CADA LUGAR, UNA HISTORIA',
     project: 'El proyecto',
-    roadmap: 'Hoja de ruta',
     privacy: 'Privacidad',
-    status: 'Fase 0 · Base preparada',
-    eyebrow: 'TU PRÓXIMO GRAN VIAJE EMPIEZA AQUÍ',
+    accessible: 'Vista accesible',
+    help: 'Cómo explorar',
+    phase: 'FASE 01 / EL GLOBO',
+    eyebrow: 'EL MUNDO, A TU RITMO',
     title: ['El mundo,', 'tu historia.'],
     intro:
-      'Un atlas personal de los lugares que has visitado. Tu historia de viajes, sobre un planeta que podrás explorar a tu ritmo.',
-    planAction: 'Descubrir el plan',
-    privacyAction: 'La privacidad, primero',
-    progress: 'ESTAMOS CONSTRUYENDO ATLAS',
-    progressDescription:
-      'La estructura ya está lista. El siguiente paso es dar vida al globo 3D.',
-    artwork: 'ESTUDIO ORBITAL',
-    artworkCaption:
-      'Ilustración del proyecto · El globo interactivo llega en la fase 1',
-    principlesLabel: 'LOS CIMIENTOS',
-    principlesTitle: 'Un mapa muy tuyo.',
-    principlesIntro:
-      'Pensado para explorar el mundo. Diseñado para cuidar tu historia.',
-    principles: [
-      {
-        icon: 'shield',
-        title: 'Privado desde el origen',
-        description:
-          'El historial original permanecerá en tu equipo. La futura importación publicará solo información agregada y saneada.',
-      },
-      {
-        icon: 'orbit',
-        title: 'El planeta como lienzo',
-        description:
-          'Un globo 3D será el centro de la experiencia: países, ciudades y viajes conectados sobre la Tierra.',
-      },
-      {
-        icon: 'layers',
-        title: 'Paso a paso, con rumbo',
-        description:
-          'Ocho fases, una base comprobable en cada una. Este primer hito prepara el proyecto para lo que viene.',
-      },
-    ],
-    roadmapLabel: 'EL CAMINO POR DELANTE',
-    roadmapTitle: 'De la primera línea al mundo entero.',
-    roadmapIntro: 'Selecciona una fase para conocer su alcance.',
-    phaseReady: 'Preparada',
-    phaseNext: 'Siguiente',
-    phaseFuture: 'Por construir',
-    phaseLabel: 'Fase',
+      'Hay un planeta entero por recordar. Gira, acércate y encuentra otra perspectiva.',
+    projectAction: 'Conocer el proyecto',
+    emptyLabel: 'TU ATLAS EMPIEZA AQUÍ',
+    emptyDescription:
+      'Todavía no hay viajes cargados. Este globo muestra la Tierra, sin ubicaciones personales.',
+    globeLabel: 'Globo terráqueo 3D',
+    globeInstructions:
+      'Arrastra para girar. Usa la rueda o un pellizco para acercarte. Pulsa Tab para acceder a los controles.',
+    home: 'Vista inicial',
+    zoomIn: 'Acercar',
+    zoomOut: 'Alejar',
+    tilt: 'Cambiar inclinación',
+    rotation: 'Rotación automática',
+    countries: 'Fronteras de países',
+    lighting: 'Iluminación día y noche',
+    north: 'NORTE',
+    reducedMotion:
+      'La rotación está pausada por tu preferencia de movimiento reducido.',
+    status: {
+      loading: 'Preparando el planeta…',
+      ready: 'Listo para explorar',
+      error: 'No se ha podido mostrar el globo',
+    },
+    fallback: {
+      title: 'El mundo sigue aquí.',
+      description:
+        'El globo no está disponible en este momento. Vuelve a intentarlo; si tu navegador no ofrece aceleración gráfica, puedes seguir con la vista accesible.',
+      retry: 'Volver a intentar',
+    },
+    close: 'Cerrar ventana',
+    understood: 'Entendido',
+    privacyDialog: {
+      eyebrow: 'TU HISTORIA TE PERTENECE',
+      title: 'Explorar sin exponerte.',
+      intro:
+        'La privacidad forma parte de los cimientos de Atlas. Esta fase todavía no permite importar datos ni muestra ubicaciones personales.',
+      items: [
+        {
+          title: 'El original se queda contigo',
+          description:
+            'El futuro pipeline procesará tu exportación en tu ordenador. Nunca subas un archivo original de Timeline al repositorio.',
+        },
+        {
+          title: 'Solo se compartirá lo que elijas',
+          description:
+            'La salida estará agrupada por ciudad, sin horas exactas y con zonas de exclusión para casa, trabajo y otros lugares sensibles.',
+        },
+        {
+          title: 'Una primera barrera ya está activa',
+          description:
+            'Git ignora los archivos privados y un control de pre-commit y CI busca formatos crudos. El saneado de ubicaciones llegará en la fase 2.',
+        },
+      ],
+    },
+    projectDialog: {
+      eyebrow: 'UN PLANETA DE HISTORIAS',
+      title: 'Estamos construyendo Atlas.',
+      intro:
+        'Un atlas personal de viajes, con la Tierra como lienzo y la privacidad como punto de partida. Selecciona una fase para conocer el camino.',
+      ready: 'Completada',
+      current: 'Fase actual',
+      future: 'Por construir',
+    },
     phases: [
       {
         title: 'Andamiaje',
         subtitle: 'Una base sólida',
         description:
-          'Monorepo, interfaz inicial, TypeScript estricto, herramientas de calidad, pruebas y controles para impedir que el historial crudo llegue al repositorio.',
+          'Monorepo, TypeScript estricto, herramientas de calidad, pruebas y controles para impedir que el historial crudo llegue al repositorio.',
       },
       {
         title: 'Globo',
-        subtitle: 'Dar vida al planeta',
+        subtitle: 'El planeta cobra vida',
         description:
-          'Cesium, imágenes sin clave, atmósfera, iluminación y controles de cámara. También llegará la primera publicación en GitHub Pages.',
+          'La Tierra en 3D, imágenes sin clave, atmósfera, iluminación y controles de cámara. Una capa de fronteras permite situarte sobre el mapa.',
       },
       {
         title: 'Datos',
@@ -100,32 +125,41 @@ export const texts = {
           'Rendimiento móvil, accesibilidad, interfaz en inglés y pruebas completas. Una guía final explicará cómo exportar y cargar tus datos.',
       },
     ],
-    footer: 'Hecho para recordar dónde has estado. Y soñar con lo que queda.',
-    footerVersion: 'ATLAS / FASE 0',
-    privacyDialog: {
-      eyebrow: 'TU HISTORIA TE PERTENECE',
-      title: 'Explorar sin exponerte.',
+    helpDialog: {
+      eyebrow: 'ENCUENTRA OTRA PERSPECTIVA',
+      title: 'El mundo está en tus manos.',
       intro:
-        'La privacidad forma parte de los cimientos de Atlas. Esta fase todavía no permite importar datos ni muestra ubicaciones personales.',
+        'Todos los movimientos tienen también un control en pantalla. La rotación automática se detiene al interactuar con el globo.',
       items: [
         {
-          title: 'El original se queda contigo',
+          title: 'Ratón',
           description:
-            'El futuro pipeline procesará tu exportación en tu ordenador. Nunca subas un archivo original de Timeline al repositorio.',
+            'Arrastra para girar, usa la rueda para acercarte y arrastra con el botón central para inclinar la cámara.',
         },
         {
-          title: 'Solo se compartirá lo que elijas',
+          title: 'Pantalla táctil',
           description:
-            'La salida estará agrupada por ciudad, sin horas exactas y con zonas de exclusión para casa, trabajo y otros lugares sensibles.',
+            'Arrastra con un dedo para girar. Pellizca para acercarte y arrastra con dos dedos para inclinar.',
         },
         {
-          title: 'Una primera barrera ya está activa',
+          title: 'Teclado',
           description:
-            'Git ignora los archivos privados y un control de pre-commit y CI busca formatos crudos. El saneado de ubicaciones se implementará en la fase 2.',
+            'Con el globo enfocado, las flechas giran la vista, + y − controlan la distancia e Inicio vuelve a la vista inicial. Tab permite salir del globo.',
         },
       ],
-      close: 'Entendido',
-      closeLabel: 'Cerrar información de privacidad',
+    },
+    accessibleDialog: {
+      eyebrow: 'OTRA FORMA DE EXPLORAR',
+      title: 'Atlas, sin barreras.',
+      intro:
+        'Este primer hito presenta la Tierra y sus fronteras. Todavía no contiene un historial de viajes, países visitados ni estadísticas personales.',
+      controls: 'Controles del explorador',
+      controlsDescription:
+        'Los botones de la pantalla permiten acercar, alejar, cambiar la inclinación o volver al inicio. También puedes activar las fronteras y la iluminación día y noche.',
+      next: 'Lo que llegará después',
+      nextDescription:
+        'Cuando exista el historial agregado, aquí podrás recorrer tus lugares y viajes como una lista, sin depender del globo.',
+      projectAction: 'Ver la hoja de ruta',
     },
   },
 } as const;
