@@ -1,13 +1,17 @@
 # ATLAS — hoja de ruta
 
-Estado inicial: repositorio vacío. Se empieza por la **Fase 0** y se mantiene un
-proyecto funcional al cerrar cada hito. No se solicitan ni utilizan datos reales
-para desarrollar. Este plan describe el alcance completo; las fases futuras no
-son funcionalidades ya disponibles.
+La **Fase 0 está integrada en `main`** y se trabaja en la **Fase 1 — Globo**.
+La publicación sigue pendiente de verificar. Se mantiene un proyecto funcional
+al cerrar cada hito, sin solicitar ni utilizar datos reales para desarrollar.
+Este plan describe el alcance completo; las fases futuras no son funcionalidades
+ya disponibles.
 
 ## Fase 0 — Andamiaje
 
 Rama: `fase-0-andamiaje`.
+
+Integrada mediante la [PR #1](https://github.com/alfonsodfernandez/atlas/pull/1),
+commit `bcbb4b4` en `main`, tras la indicación de continuar del usuario.
 
 - [x] Inicializar `main` con `.gitignore`, instrucciones de privacidad y enlace
       de `CLAUDE.md` a `AGENTS.md` antes de incorporar código.
@@ -29,19 +33,24 @@ La publicación comienza en Fase 1 y no bloquea este hito.
 
 ## Fase 1 — Globo
 
-Rama prevista: `fase-1-globo`.
+Rama: `fase-1-globo`. Implementación en curso de revisión; las casillas de código
+no sustituyen la validación local, CI ni la comprobación del despliegue.
 
-- [ ] Integrar CesiumJS con carga diferida y globo WGS84.
-- [ ] Seleccionar imágenes sin clave y mostrar sus atribuciones.
-- [ ] Añadir atmósfera, estrellas e iluminación día/noche.
-- [ ] Rotación lenta que se detiene al interactuar; respetar movimiento reducido.
-- [ ] Controles de ratón, táctil y teclado, con adaptación móvil.
-- [ ] Incorporar países Natural Earth y documentar procedencia/licencia.
-- [ ] Preparar opciones de Cesium ion y Google Photorealistic 3D Tiles con
+- [x] Integrar CesiumJS con carga diferida y globo WGS84.
+- [x] Seleccionar imagen NASA sin clave, servida localmente, y mostrar atribuciones.
+- [x] Añadir atmósfera, estrellas e iluminación día/noche.
+- [x] Rotación lenta que se detiene al interactuar; respetar movimiento reducido.
+- [x] Controles de ratón, táctil y teclado, con adaptación móvil y alternativa
+      accesible ante fallo de WebGL.
+- [x] Incorporar países Natural Earth 1:50m y documentar procedencia/licencia.
+- [x] Preparar opciones de Cesium ion y Google Photorealistic 3D Tiles con
       degradación a las imágenes gratuitas.
-- [ ] Añadir E2E de canvas y ausencia de errores de la aplicación.
-- [ ] Añadir `deploy.yml`, activar GitHub Pages cuando sea posible y verificar
-      el despliegue desde `main`.
+- [x] Añadir E2E de canvas y ausencia de errores de la aplicación.
+- [x] Añadir `deploy.yml`, condicionado a CI correcta en `main`, y ejecución manual.
+- [x] Verificar instalación limpia, calidad, build y E2E del globo.
+- [ ] Confirmar CI verde para la revisión actual de la Fase 1.
+- [ ] Activar GitHub Pages y verificar el despliegue desde `main`.
+- [ ] Comprobar que la URL pública muestra el globo girable sin claves API.
 
 **Criterio de cierre:** una URL pública muestra el globo girable sin claves API.
 
@@ -143,14 +152,21 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
 
 ## Decisiones / Pendiente de Alfonso
 
-- **Fases:** se completa primero la Fase 0. Cesium, parsers y publicación tienen
-  sus propios hitos; no se incorporan implementaciones parciales para aparentar
-  que ya funcionan.
+- **Fases:** Fase 0 integrada; Fase 1 en curso. Los parsers, datos y estadísticas
+  pertenecen a los siguientes hitos y todavía no están disponibles.
 - **Git:** al estar vacío el repositorio, se inicializa `main` con un commit de
   privacidad y después se trabaja en `fase-0-andamiaje`. Commits convencionales
   pequeños, merge únicamente tras comprobar CI, nunca `push --force` a `main`.
 - **Stack:** se mantiene Vite + React + TypeScript strict, npm workspaces,
-  Zustand, Tailwind y Motion. Cesium sigue siendo la elección de Fase 1.
+  Zustand, Tailwind y Motion. Cesium se integra en Fase 1 con importación
+  diferida y assets de runtime copiados localmente. Referencia:
+  [guía oficial de CesiumJS](https://cesium.com/learn/cesiumjs-learn/cesiumjs-quickstart/).
+- **Mapa básico:** textura NASA Blue Marble y países Natural Earth 1:50m
+  versionados en `public/maps/`, sin peticiones a proveedores de mapas en
+  runtime. El globo básico es un elipsoide WGS84, sin relieve ni edificios. Los
+  datos geográficos no representan visitas y las 242 entidades de Natural Earth
+  incluyen territorios y áreas disputadas; no son un contador de países visitados.
+  Fuentes, licencias y hashes en [public/maps/README.md](public/maps/README.md).
 - **Dependencias:** Vite se declara también en la raíz para que Vitest y los
   plugins compartan una sola versión. Se fija una resolución de `minimatch`
   11.0.8 o posterior para `typescript-estree`, evitando la dependencia afectada
@@ -158,32 +174,34 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
 - **Privacidad:** no se necesita información personal para Fase 0. Solo se
   versiona un ejemplo de configuración con listas vacías. Su estructura es
   provisional hasta que la Fase 2 defina el contrato y la validación.
-- **Pruebas:** Vitest cubre las barreras de privacidad y la lógica que exista;
-  Playwright empieza por flujos de la pantalla inicial. Se añaden pruebas reales
-  del globo y de los parsers cuando esas funciones estén implementadas.
+- **Pruebas:** Vitest cubre las barreras de privacidad, la cartografía y la lógica
+  que exista; Playwright comprueba el globo real en la Fase 1. Los parsers tendrán
+  pruebas cuando se implementen. No se da por verificado WebGL con un mock.
 - **Investigación:** no se ha escrito ningún parser de Timeline. Antes de
   hacerlo hay que comprobar los formatos actuales en fuentes externas y citar
   sus ejemplos/documentación.
 - **Datos sintéticos:** no hay estadísticas personales ni historial simulado
   presentado como real. El dataset representativo se construirá en Fase 2.
 - **Hosting:** se respeta GitHub Pages como destino; no se crea otro servicio.
-  La base inicial es `/atlas/`; la publicación comienza en Fase 1. El repositorio
-  es privado: comprobar disponibilidad de Pages según el plan de la cuenta. Si
-  exige cambiar su visibilidad, dejar esa decisión a Alfonso.
-- **Claves opcionales:** no se necesitan en Fase 0. En Fase 1 se documentará el
-  mapeo de secrets a variables Vite y las restricciones de dominio/API; las
-  variables del cliente no son secretos.
+  La base local es `/atlas/`; el workflow usa la base de `configure-pages`.
+  La consulta a la configuración de Pages devuelve HTTP 403 (`Resource not
+accessible by integration`). La activación y la URL pública no están
+  verificadas. Alfonso puede comprobar Settings → Pages → GitHub Actions y la
+  disponibilidad según el plan; no se cambia la visibilidad privada del repo.
+- **Claves opcionales:** `.env.local` en la raíz configura
+  `VITE_CESIUM_ION_TOKEN` y `VITE_GOOGLE_MAPS_API_KEY`. En Actions, los secrets
+  `CESIUM_ION_TOKEN` y `GOOGLE_MAPS_API_KEY` se mapean a esas variables al compilar.
+  El modo básico no necesita claves. Las variables del cliente son públicas;
+  los mapas opcionales hacen peticiones a los proveedores y requieren las
+  restricciones de dominio/API correspondientes.
 - **Pendiente de Alfonso, más adelante:** exportar su historial en su equipo,
   revisar exclusiones y decidir qué lugares permite publicar con más precisión.
   Ninguna de estas decisiones bloquea el andamiaje.
-- **Integración de Fase 0:** la revisión automática ha rechazado el merge de la
-  PR #1 a `main` por exigir una autorización explícita en el chat para modificar
-  la rama por defecto. El documento adjunto pide fusionar las fases verdes, pero
-  el control no lo ha aceptado como autorización suficiente. La implementación
-  está terminada y la CI de push y PR pasa; queda pendiente esa autorización
-  para integrar. No se intentará eludir el bloqueo mediante Git u otro mecanismo.
+- **Integración de Fase 0:** resuelta. Tras la indicación de continuar del usuario,
+  la PR #1 se fusionó correctamente en `main` como `bcbb4b4`. El rechazo de
+  aprobación anterior ya no bloquea esta fase.
 
-## Validación del hito actual
+## Validación de Fase 0
 
 Comprobado en local con Node.js 24 y npm 11:
 
@@ -208,8 +226,34 @@ Comprobado en local con Node.js 24 y npm 11:
 CI completa de GitHub superada el 15 de noviembre de 2026 para `34f5097`:
 [ejecución de CI](https://github.com/alfonsodfernandez/atlas/actions/runs/43740197181).
 La integración de la Fase 0 se registra en la
-[PR #1](https://github.com/alfonsodfernandez/atlas/pull/1); cualquier actualización
-de la rama debe pasar sus comprobaciones antes del merge.
+[PR #1](https://github.com/alfonsodfernandez/atlas/pull/1), fusionada en `main`
+como `bcbb4b4`.
 
-No hay despliegue público en Fase 0. El próximo hito es la Fase 1: Cesium y
-GitHub Pages, manteniendo intactas las barreras de privacidad.
+La Fase 0 no tuvo despliegue público. Sus resultados describen el andamiaje de
+ese momento, no la verificación del globo de la Fase 1.
+
+## Validación de Fase 1
+
+Comprobado en el entorno de desarrollo:
+
+- `npm ci`, `npm run check` y `npm run build`: correctos; 37 pruebas Vitest verdes.
+- `npm run test:e2e`: 10 casos verdes en escritorio y móvil. Cesium se renderiza
+  realmente mediante WebGL 2; se comprueban cámara, inclinación, teclado, capas,
+  rotación, movimiento reducido, privacidad y alternativa sin WebGL.
+- La carga básica no produce errores ni peticiones a servicios externos.
+- La cartografía coincide con sus hashes y mantiene anillos cerrados y
+  coordenadas válidas. `node scripts/prepare-maps.mjs` reproduce los assets.
+- `actionlint` valida los workflows; `npm audit` no detecta vulnerabilidades.
+- Captura real con fronteras en `docs/images/fase-1.png`. La geometría de las
+  fronteras se prepara de forma asíncrona tras cargar el globo.
+- Se corrigió la estructura de copia de `vite-plugin-static-copy` 4: se retira
+  el prefijo `node_modules/cesium/Build/Cesium` para servir `/atlas/cesium/`.
+- Las pruebas usan SwiftShader y no constituyen una medición de FPS en hardware
+  de escritorio o móvil; esa medición corresponde al pulido de la Fase 7.
+
+Falta confirmar la CI del commit final y la publicación en GitHub Pages. La API
+de Pages devuelve 403 y la URL esperada devuelve 404; no se presenta como un
+despliegue operativo.
+
+No se ha verificado una URL pública ni el funcionamiento con claves opcionales
+de Cesium ion o Google. La configuración básica no depende de esas claves.
