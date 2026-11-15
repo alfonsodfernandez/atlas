@@ -196,6 +196,12 @@ Comprobado en local con Node.js 24 y npm 11:
 - E2E sin errores de consola ni peticiones a servicios externos; sin desbordamiento
   horizontal, también comprobado a 320 px de ancho.
 - Captura real de la pantalla inicial en `docs/images/fase-0.png`.
+- Una ejecución posterior de CI detectó una carrera al reabrir el diálogo tras
+  pulsar Escape. Se reprodujo localmente (5 fallos en 20 repeticiones) y se
+  eliminó el evento de cierre nativo que sobrescribía una apertura nueva.
+  El E2E ahora repite cierres y reaperturas sin pausas artificiales.
+  Tras la corrección pasan 20 repeticiones entre escritorio y móvil, y vuelve a
+  pasar la suite completa de 4 E2E. CI conserva trazas y capturas al fallar.
 - `npm audit`: ninguna vulnerabilidad tras actualizar la resolución de
   `minimatch` y regenerar el lockfile.
 

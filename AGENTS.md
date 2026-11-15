@@ -62,5 +62,7 @@ real y las instrucciones disponibles.
 - `atlas.config.json` debe seguir ignorado; versiona solo el ejemplo sin datos reales.
 - El scanner de privacidad no sustituye al saneado del futuro pipeline.
 - La Fase 0 no importa Timeline ni carga mapas externos; el diseño orbital es SVG.
+- El diálogo nativo tiene visibilidad controlada por el estado React. No añadas
+  un `onClose` que sobrescriba ese estado: el evento puede llegar tras reabrirlo.
 - Vite sirve `public/` desde la raíz del repo mediante `publicDir` explícito.
 - Un build local correcto no demuestra que GitHub Actions o Pages hayan pasado.

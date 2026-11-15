@@ -189,8 +189,12 @@ function PrivacyDialog() {
       ref={dialog}
       className="privacy-dialog"
       aria-labelledby="privacy-title"
-      onCancel={() => setOpen(false)}
-      onClose={() => setOpen(false)}
+      onCancel={(event) => {
+        // Keep React as the sole owner of visibility. A native close event is
+        // queued and can arrive after the user has already reopened the dialog.
+        event.preventDefault();
+        setOpen(false);
+      }}
     >
       <div className="dialog-content">
         <button

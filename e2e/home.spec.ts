@@ -64,20 +64,29 @@ test('la privacidad se consulta con teclado y devuelve el foco al cerrar', async
   const trigger = page.getByRole('button', { name: 'Privacidad', exact: true });
   const dialog = page.getByRole('dialog', { name: 'Explorar sin exponerte.' });
 
-  await trigger.focus();
-  await page.keyboard.press('Enter');
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText('todavía no permite importar datos');
-  await expect(dialog).toContainText(
-    'Nunca subas un archivo original de Timeline',
-  );
-  await page.keyboard.press('Escape');
-  await expect(dialog).not.toBeVisible();
-  await expect(trigger).toBeFocused();
+  // Rapid reopen must survive the previous native dialog close event.
+  for (let cycle = 1; cycle <= 3; cycle += 1) {
+    await test.step(`Abrir y cerrar con Escape, ciclo ${cycle}`, async () => {
+      await trigger.focus();
+      await page.keyboard.press('Enter');
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText('todavía no permite importar datos');
+      await expect(dialog).toContainText(
+        'Nunca subas un archivo original de Timeline',
+      );
+      await page.keyboard.press('Escape');
+      await expect(dialog).not.toBeVisible();
+      await expect(trigger).toBeFocused();
+    });
 
-  await trigger.press('Enter');
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Entendido', exact: true }).click();
-  await expect(dialog).not.toBeVisible();
-  await expect(trigger).toBeFocused();
+    await test.step(`Reabrir y cerrar con el botón, ciclo ${cycle}`, async () => {
+      await trigger.press('Enter');
+      await expect(dialog).toBeVisible();
+      await dialog
+        .getByRole('button', { name: 'Entendido', exact: true })
+        .click();
+      await expect(dialog).not.toBeVisible();
+      await expect(trigger).toBeFocused();
+    });
+  }
 });
