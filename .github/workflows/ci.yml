@@ -18,11 +18,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Descargar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -44,3 +44,11 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Ejecutar pruebas de navegador
         run: npm run test:e2e
+      - name: Conservar diagnóstico de pruebas fallidas
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnostico-playwright
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
