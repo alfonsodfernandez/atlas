@@ -3,7 +3,7 @@
 ## Alcance y fases
 
 Lee `PLAN.md` antes de modificar el proyecto. Avanza en orden y deja cada fase
-funcional. El encargo inicial autoriza completar la Fase 0; el globo, los parsers y
+funcional. El encargo inicial comienza por la Fase 0; el globo, los parsers y
 la publicación corresponden a los siguientes hitos. No presentes una maqueta como
 un globo 3D operativo ni datos ficticios como el historial de Alfonso.
 
@@ -62,6 +62,7 @@ real y las instrucciones disponibles.
 - `atlas.config.json` debe seguir ignorado; versiona solo el ejemplo sin datos reales.
 - El scanner de privacidad no sustituye al saneado del futuro pipeline.
 - La Fase 0 no importa Timeline ni carga mapas externos; el diseño orbital es SVG.
+- El diálogo nativo tiene visibilidad controlada por el estado React. No añadas
+  un `onClose` que sobrescriba ese estado: el evento puede llegar tras reabrirlo.
 - Vite sirve `public/` desde la raíz del repo mediante `publicDir` explícito.
 - Un build local correcto no demuestra que GitHub Actions o Pages hayan pasado.
-

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Calidad y privacidad
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Descargar código
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Configurar Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Comprobar privacidad
+        run: npm run check:privacy
+      - name: Comprobar formato
+        run: npm run format:check
+      - name: Ejecutar ESLint
+        run: npm run lint
+      - name: Comprobar TypeScript
+        run: npm run typecheck
+      - name: Ejecutar pruebas unitarias
+        run: npm test
+      - name: Construir web
+        run: npm run build
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Ejecutar pruebas de navegador
+        run: npm run test:e2e
+      - name: Conservar diagnóstico de pruebas fallidas
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: diagnostico-playwright
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7
