@@ -1,20 +1,39 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import {
+  Component,
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+  type PropsWithChildren,
+  type ReactNode,
+} from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { useInterfaceStore } from './store';
+import type { GlobeHandle } from './globe/types';
+import { useInterfaceStore, type DialogKind } from './store';
 import { copy } from './texts';
 
-type IconName = 'arrow' | 'shield' | 'orbit' | 'layers' | 'close';
+const Globe = lazy(() => import('./globe/Globe'));
 
-function Icon({
-  name,
-  className = '',
-}: {
-  name: IconName;
-  className?: string;
-}) {
+type IconName =
+  | 'orbit'
+  | 'shield'
+  | 'arrow'
+  | 'close'
+  | 'home'
+  | 'plus'
+  | 'minus'
+  | 'tilt'
+  | 'rotate'
+  | 'pause'
+  | 'layers'
+  | 'sun'
+  | 'help'
+  | 'list';
+
+function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
-    arrow: <path d="M4 12h16m-6-6 6 6-6 6" />,
-    shield: <path d="m12 3 8 3v6c0 5-8 9-8 9S4 17 4 12V6l8-3Zm-4 9 3 3 5-6" />,
     orbit: (
       <>
         <circle cx="12" cy="12" r="7" />
@@ -22,17 +41,52 @@ function Icon({
         <circle cx="18" cy="5" r="1" />
       </>
     ),
-    layers: (
+    shield: <path d="m12 3 8 3v6c0 5-8 9-8 9S4 17 4 12V6l8-3Zm-4 9 3 3 5-6" />,
+    arrow: <path d="M4 12h16m-6-6 6 6-6 6" />,
+    close: <path d="m6 6 12 12M18 6 6 18" />,
+    home: (
       <>
-        <path d="m12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5" />
+        <circle cx="12" cy="12" r="7" />
+        <path d="M12 2v5m0 10v5M2 12h5m10 0h5" />
       </>
     ),
-    close: <path d="m6 6 12 12M18 6 6 18" />,
+    plus: <path d="M5 12h14M12 5v14" />,
+    minus: <path d="M5 12h14" />,
+    tilt: (
+      <>
+        <ellipse cx="12" cy="15" rx="9" ry="4" transform="rotate(-20 12 15)" />
+        <path d="m8 4 4-2 4 2M12 2v9" />
+      </>
+    ),
+    rotate: (
+      <>
+        <path d="M20 10a8 8 0 1 0-2 8M20 4v6h-6" />
+      </>
+    ),
+    pause: <path d="M9 5v14M15 5v14" />,
+    layers: (
+      <path d="m12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5" />
+    ),
+    sun: (
+      <>
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" />
+      </>
+    ),
+    help: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3v.1" />
+      </>
+    ),
+    list: (
+      <>
+        <path d="M9 6h12M9 12h12M9 18h12M3 6h.1M3 12h.1M3 18h.1" />
+      </>
+    ),
   };
-
   return (
     <svg
-      className={className}
       width="24"
       height="24"
       viewBox="0 0 24 24"
@@ -48,178 +102,192 @@ function Icon({
   );
 }
 
-function OrbitalStudy() {
+class GlobeBoundary extends Component<
+  PropsWithChildren<{ onError: () => void }>,
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch() {
+    this.props.onError();
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+function ProjectContent() {
+  const selectedPhase = useInterfaceStore((state) => state.selectedPhase);
+  const selectPhase = useInterfaceStore((state) => state.selectPhase);
+  const phase = copy.phases[selectedPhase] ?? copy.phases[1];
   return (
-    <figure className="orbital-study">
-      <div className="orbit-coordinate coordinate-top" aria-hidden="true">
-        AXIS / 23.5°
-      </div>
-      <svg
-        className="orbital-art"
-        viewBox="0 0 600 600"
-        fill="none"
-        aria-hidden="true"
-      >
-        <defs>
-          <radialGradient id="planet-fill" cx=".35" cy=".3" r=".75">
-            <stop stopColor="#1b434a" stopOpacity=".8" />
-            <stop offset=".55" stopColor="#10242d" />
-            <stop offset="1" stopColor="#090f18" />
-          </radialGradient>
-          <linearGradient
-            id="orbit-stroke"
-            x1="60"
-            y1="190"
-            x2="570"
-            y2="400"
-            gradientUnits="userSpaceOnUse"
+    <>
+      <p className="dialog-intro">{copy.projectDialog.intro}</p>
+      <div className="phase-grid" aria-label="Fases del proyecto">
+        {copy.phases.map((item, index) => (
+          <button
+            key={item.title}
+            className={`phase-button ${selectedPhase === index ? 'selected' : ''}`}
+            aria-pressed={selectedPhase === index}
+            aria-controls="phase-detail"
+            onClick={() => selectPhase(index)}
           >
-            <stop stopColor="#7ed0b8" stopOpacity="0" />
-            <stop offset=".45" stopColor="#a2e5ce" stopOpacity=".85" />
-            <stop offset="1" stopColor="#7ed0b8" stopOpacity=".05" />
-          </linearGradient>
-          <radialGradient id="halo">
-            <stop offset=".65" stopColor="#77c7b4" stopOpacity=".1" />
-            <stop offset="1" stopColor="#77c7b4" stopOpacity="0" />
-          </radialGradient>
-          <clipPath id="planet-clip">
-            <circle cx="300" cy="300" r="177" />
-          </clipPath>
-        </defs>
-        <circle cx="300" cy="300" r="260" fill="url(#halo)" />
-        <circle
-          cx="300"
-          cy="300"
-          r="245"
-          stroke="#73929c"
-          strokeOpacity=".12"
-          strokeDasharray="2 8"
-        />
-        <circle
-          cx="300"
-          cy="300"
-          r="214"
-          stroke="#73929c"
-          strokeOpacity=".09"
-        />
-        <path
-          d="M300 42v19m0 478v19M42 300h19m478 0h19"
-          stroke="#79939a"
-          strokeOpacity=".45"
-        />
-        <ellipse
-          cx="300"
-          cy="300"
-          rx="280"
-          ry="91"
-          transform="rotate(-28 300 300)"
-          stroke="#7daca8"
-          strokeOpacity=".12"
-        />
-        <circle
-          cx="300"
-          cy="300"
-          r="177"
-          fill="url(#planet-fill)"
-          stroke="#91d4c5"
-          strokeOpacity=".32"
-        />
-        <g
-          clipPath="url(#planet-clip)"
-          stroke="#91cbbb"
-          strokeOpacity=".2"
-          strokeWidth=".7"
-          transform="rotate(-17 300 300)"
-        >
-          <ellipse cx="300" cy="300" rx="55" ry="177" />
-          <ellipse cx="300" cy="300" rx="108" ry="177" />
-          <ellipse cx="300" cy="300" rx="150" ry="177" />
-          <ellipse cx="300" cy="300" rx="177" ry="45" />
-          <ellipse cx="300" cy="300" rx="177" ry="98" />
-          <ellipse cx="300" cy="300" rx="177" ry="145" />
-          <path d="M123 300h354M300 123v354" />
-          <path
-            d="m205 189 24 13 9 24 32 8 4 25-21 15-6 33-28 8-15-29-25-15 10-34-11-21 27-27Zm50 137 32 8 15 27-7 30-26 40-12-25 4-26-18-28 12-26Zm81-141 26 12 39-1 27 23-11 20 20 18-13 22-31-4-15 23-24-11-21-35-23 3-10-23 13-20 23-7Zm22 117 30 5 22 34-12 34-24 28-23-20-7-35 14-46Zm65 90 25-8 18 16-14 16-29-5v-19Z"
-            fill="#67b59f"
-            fillOpacity=".1"
-            strokeOpacity=".42"
-            strokeLinejoin="round"
-          />
-        </g>
-        <path
-          d="M52 397c35 48 172 26 305-44s221-159 186-207"
-          stroke="url(#orbit-stroke)"
-          strokeWidth="1.5"
-        />
-        <path
-          d="M150 201c31-49 122-86 185-55"
-          stroke="#b4edd6"
-          strokeOpacity=".4"
-          strokeWidth="1.2"
-          strokeLinecap="round"
-        />
-        <circle cx="444" cy="289" r="4" fill="#b8efd8" />
-        <circle cx="444" cy="289" r="10" stroke="#b8efd8" strokeOpacity=".3" />
-        <circle cx="95" cy="156" r="1.5" fill="#b0c3c6" />
-        <circle cx="494" cy="112" r="2" fill="#86b7ac" />
-        <circle cx="501" cy="449" r="1.5" fill="#b0c3c6" />
-        <circle cx="126" cy="468" r="2" fill="#86b7ac" />
-        <path d="M236 505h128" stroke="#6c8d91" strokeOpacity=".2" />
-      </svg>
-      <div className="orbit-coordinate coordinate-bottom" aria-hidden="true">
-        WGS84 / {copy.artwork}
+            <span className="phase-number">
+              {String(index).padStart(2, '0')}
+            </span>
+            <span className="phase-title">{item.title}</span>
+            <span className="phase-state">
+              {index === 0
+                ? copy.projectDialog.ready
+                : index === 1
+                  ? copy.projectDialog.current
+                  : copy.projectDialog.future}
+            </span>
+          </button>
+        ))}
       </div>
-      <figcaption>{copy.artworkCaption}</figcaption>
-    </figure>
+      <div
+        id="phase-detail"
+        className="phase-detail"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <h3>{phase.subtitle}</h3>
+        <p>{phase.description}</p>
+      </div>
+    </>
   );
 }
 
-function PrivacyDialog() {
+function AccessibleContent() {
+  const setDialog = useInterfaceStore((state) => state.setDialog);
+  const status = useInterfaceStore((state) => state.globeStatus);
+  return (
+    <>
+      <p className="dialog-intro">{copy.accessibleDialog.intro}</p>
+      <dl className="accessible-summary">
+        <div>
+          <dt>Explorador</dt>
+          <dd>{copy.status[status.state]}</dd>
+        </div>
+        <div>
+          <dt>Capa de fronteras</dt>
+          <dd>
+            {status.countryCount > 0
+              ? `${status.countryCount} territorios disponibles`
+              : 'Todavía no está disponible'}
+          </dd>
+        </div>
+        <div>
+          <dt>Datos personales</dt>
+          <dd>No se ha cargado ningún historial</dd>
+        </div>
+      </dl>
+      <h3>{copy.accessibleDialog.controls}</h3>
+      <p>{copy.accessibleDialog.controlsDescription}</p>
+      <h3>{copy.accessibleDialog.next}</h3>
+      <p>{copy.accessibleDialog.nextDescription}</p>
+      <button className="text-button" onClick={() => setDialog('project')}>
+        {copy.accessibleDialog.projectAction}
+        <Icon name="arrow" />
+      </button>
+    </>
+  );
+}
+
+function InfoDialog() {
   const dialog = useRef<HTMLDialogElement>(null);
-  const open = useInterfaceStore((state) => state.privacyOpen);
-  const setOpen = useInterfaceStore((state) => state.setPrivacyOpen);
+  const activeDialog = useInterfaceStore((state) => state.activeDialog);
+  const setDialog = useInterfaceStore((state) => state.setDialog);
+  const kind = activeDialog ?? 'privacy';
+  const content =
+    kind === 'privacy'
+      ? copy.privacyDialog
+      : kind === 'project'
+        ? copy.projectDialog
+        : kind === 'accessible'
+          ? copy.accessibleDialog
+          : copy.helpDialog;
 
   useEffect(() => {
-    if (open && !dialog.current?.open) dialog.current?.showModal();
-    if (!open && dialog.current?.open) dialog.current.close();
-  }, [open]);
+    if (activeDialog !== null && !dialog.current?.open)
+      dialog.current?.showModal();
+    else if (activeDialog !== null) {
+      dialog.current?.querySelector<HTMLElement>('#dialog-title')?.focus();
+    }
+    if (activeDialog === null && dialog.current?.open) dialog.current.close();
+  }, [activeDialog]);
 
   return (
     <dialog
       ref={dialog}
-      className="privacy-dialog"
-      aria-labelledby="privacy-title"
+      className={`info-dialog ${kind === 'project' ? 'project-dialog' : ''}`}
+      aria-labelledby="dialog-title"
       onCancel={(event) => {
-        // Keep React as the sole owner of visibility. A native close event is
-        // queued and can arrive after the user has already reopened the dialog.
+        // A queued native close event must never overwrite a later opening.
         event.preventDefault();
-        setOpen(false);
+        setDialog(null);
       }}
     >
       <div className="dialog-content">
         <button
-          className="dialog-close"
-          onClick={() => setOpen(false)}
-          aria-label={copy.privacyDialog.closeLabel}
+          className="dialog-close icon-button"
+          aria-label={copy.close}
+          onClick={() => setDialog(null)}
         >
           <Icon name="close" />
         </button>
-        <div className="principle-icon">
-          <Icon name="shield" />
+        <div className="dialog-symbol">
+          <Icon
+            name={
+              kind === 'privacy'
+                ? 'shield'
+                : kind === 'accessible'
+                  ? 'list'
+                  : kind === 'help'
+                    ? 'help'
+                    : 'orbit'
+            }
+          />
         </div>
-        <p className="eyebrow">{copy.privacyDialog.eyebrow}</p>
-        <h2 id="privacy-title">{copy.privacyDialog.title}</h2>
-        <p className="dialog-intro">{copy.privacyDialog.intro}</p>
-        <ul className="privacy-items">
-          {copy.privacyDialog.items.map((item) => (
-            <li key={item.title}>
-              <h3>{item.title}</h3>
-              <p>{item.description}</p>
-            </li>
-          ))}
-        </ul>
-        <button className="primary-button" onClick={() => setOpen(false)}>
-          {copy.privacyDialog.close}
+        <p className="eyebrow">{content.eyebrow}</p>
+        <h2 id="dialog-title" tabIndex={-1}>
+          {content.title}
+        </h2>
+        {kind === 'project' ? (
+          <ProjectContent />
+        ) : kind === 'accessible' ? (
+          <AccessibleContent />
+        ) : (
+          <>
+            <p className="dialog-intro">
+              {kind === 'privacy'
+                ? copy.privacyDialog.intro
+                : copy.helpDialog.intro}
+            </p>
+            <ul className="dialog-items">
+              {(kind === 'privacy'
+                ? copy.privacyDialog.items
+                : copy.helpDialog.items
+              ).map((item) => (
+                <li key={item.title}>
+                  <h3>{item.title}</h3>
+                  <p>{item.description}</p>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        <button
+          className="primary-button dialog-done"
+          onClick={() => setDialog(null)}
+        >
+          {copy.understood}
         </button>
       </div>
     </dialog>
@@ -227,185 +295,305 @@ function PrivacyDialog() {
 }
 
 export function App() {
-  const reducedMotion = useReducedMotion();
-  const selectedPhase = useInterfaceStore((state) => state.selectedPhase);
-  const selectPhase = useInterfaceStore((state) => state.selectPhase);
-  const setPrivacyOpen = useInterfaceStore((state) => state.setPrivacyOpen);
-  const phase = copy.phases[selectedPhase] ?? copy.phases[1];
+  const motionPreference = useReducedMotion();
+  // Stay still until the browser has resolved the motion preference.
+  const reducedMotion = motionPreference !== false;
+  const globe = useRef<GlobeHandle>(null);
+  const autoRotate = useInterfaceStore((state) => state.autoRotate);
+  const countriesVisible = useInterfaceStore((state) => state.countriesVisible);
+  const lighting = useInterfaceStore((state) => state.lighting);
+  const status = useInterfaceStore((state) => state.globeStatus);
+  const viewerKey = useInterfaceStore((state) => state.viewerKey);
+  const activeDialog = useInterfaceStore((state) => state.activeDialog);
+  const toggleRotation = useInterfaceStore((state) => state.toggleRotation);
+  const stopRotation = useInterfaceStore((state) => state.stopRotation);
+  const toggleCountries = useInterfaceStore((state) => state.toggleCountries);
+  const toggleLighting = useInterfaceStore((state) => state.toggleLighting);
+  const setGlobeStatus = useInterfaceStore((state) => state.setGlobeStatus);
+  const retryGlobe = useInterfaceStore((state) => state.retryGlobe);
+  const setDialog = useInterfaceStore((state) => state.setDialog);
+  const ready = status.state === 'ready';
+  const rotating = autoRotate && !reducedMotion && ready;
+
+  const openDialog = useCallback(
+    (kind: DialogKind) => {
+      stopRotation();
+      setDialog(kind);
+    },
+    [stopRotation, setDialog],
+  );
+
+  const handleLoadError = useCallback(() => {
+    setGlobeStatus({
+      state: 'error',
+      countryCount: 0,
+      terrain: 'ellipsoid',
+      photorealistic: false,
+    });
+  }, [setGlobeStatus]);
+
+  const handleKeyboard = (event: KeyboardEvent<HTMLElement>) => {
+    if (activeDialog !== null || !ready) return;
+    if (
+      event.target instanceof HTMLElement &&
+      event.target !== event.currentTarget &&
+      event.target.closest(
+        'a, button, input, textarea, select, [contenteditable="true"]',
+      )
+    )
+      return;
+    const controls = globe.current;
+    if (!controls) return;
+    const action =
+      event.key === 'ArrowLeft'
+        ? () => controls.rotate(-1)
+        : event.key === 'ArrowRight'
+          ? () => controls.rotate(1)
+          : event.key === 'ArrowUp'
+            ? () => controls.rotate(-2)
+            : event.key === 'ArrowDown'
+              ? () => controls.rotate(2)
+              : ['+', '='].includes(event.key)
+                ? () => controls.zoomIn()
+                : ['-', '−', '_'].includes(event.key)
+                  ? () => controls.zoomOut()
+                  : event.key === 'Home'
+                    ? () => controls.home()
+                    : undefined;
+    if (!action) return;
+    event.preventDefault();
+    stopRotation();
+    action();
+  };
 
   return (
     <>
-      <a className="skip-link" href="#contenido">
+      <a className="skip-link" href="#globo">
         {copy.skip}
       </a>
-      <div className="site-shell">
+      <div className="atlas-app">
         <header className="site-header">
-          <a className="brand" href="#contenido" aria-label="Atlas, inicio">
+          <a className="brand" href="#globo" aria-label={copy.brand}>
             <Icon name="orbit" />
-            <span>ATLAS</span>
+            <span>
+              ATLAS<small>{copy.tagline}</small>
+            </span>
           </a>
           <nav aria-label="Navegación principal">
-            <a href="#proyecto">{copy.project}</a>
-            <a href="#hoja-de-ruta">{copy.roadmap}</a>
-            <button onClick={() => setPrivacyOpen(true)}>
-              {copy.privacy}
+            <button className="nav-link" onClick={() => openDialog('project')}>
+              {copy.project}
+            </button>
+            <button
+              className="nav-link accessible-link"
+              onClick={() => openDialog('accessible')}
+            >
+              <Icon name="list" />
+              <span>{copy.accessible}</span>
+            </button>
+            <button
+              className="privacy-link"
+              onClick={() => openDialog('privacy')}
+            >
               <Icon name="shield" />
+              <span>{copy.privacy}</span>
             </button>
           </nav>
         </header>
 
-        <main id="contenido">
-          <section className="hero" aria-labelledby="hero-title">
-            <motion.div
-              className="hero-copy"
-              initial={reducedMotion ? false : { opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65 }}
-            >
-              <p className="eyebrow hero-eyebrow">
-                <span />
-                {copy.eyebrow}
-              </p>
-              <h1 id="hero-title">
-                {copy.title[0]}
-                <br />
-                <span>{copy.title[1]}</span>
-              </h1>
-              <p className="hero-description">{copy.intro}</p>
-              <div className="hero-actions">
-                <a className="primary-button" href="#hoja-de-ruta">
-                  {copy.planAction}
-                  <Icon name="arrow" />
-                </a>
-                <button
-                  className="text-button"
-                  onClick={() => setPrivacyOpen(true)}
-                >
-                  <Icon name="shield" />
-                  {copy.privacyAction}
-                </button>
-              </div>
-              <div className="project-status">
-                <span className="status-dot" />
-                <span>{copy.status}</span>
-                <span className="status-divider" />
-                <span>2026</span>
-              </div>
-            </motion.div>
-            <OrbitalStudy />
+        <main className="explorer" id="contenido">
+          <section
+            id="globo"
+            className="globe-stage"
+            role="region"
+            aria-label={copy.globeLabel}
+            aria-describedby="globe-instructions"
+            tabIndex={0}
+            data-globe-state={status.state}
+            onKeyDown={handleKeyboard}
+            onPointerDown={stopRotation}
+            onWheel={stopRotation}
+          >
+            <div className="globe-viewport">
+              <GlobeBoundary key={viewerKey} onError={handleLoadError}>
+                <Suspense fallback={null}>
+                  <Globe
+                    ref={globe}
+                    autoRotate={rotating}
+                    countriesVisible={countriesVisible}
+                    lighting={lighting}
+                    reducedMotion={reducedMotion}
+                    onInteraction={stopRotation}
+                    onStatus={setGlobeStatus}
+                  />
+                </Suspense>
+              </GlobeBoundary>
+            </div>
           </section>
+          <p id="globe-instructions" className="sr-only">
+            {copy.globeInstructions}
+          </p>
 
-          <div className="build-status">
-            <div className="build-mark" aria-hidden="true">
-              00<span>/07</span>
-            </div>
-            <div>
-              <p>{copy.progress}</p>
-              <span>{copy.progressDescription}</span>
-            </div>
-            <div
-              className="build-track"
-              aria-label="Una de ocho fases preparada"
+          <motion.aside
+            className="intro-panel"
+            initial={reducedMotion ? false : { opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            aria-labelledby="hero-title"
+          >
+            <p className="eyebrow">{copy.eyebrow}</p>
+            <h1 id="hero-title">
+              {copy.title[0]}
+              <br />
+              <span>{copy.title[1]}</span>
+            </h1>
+            <p className="intro-description">{copy.intro}</p>
+            <button
+              className="text-button"
+              onClick={() => openDialog('project')}
             >
-              <span />
+              {copy.projectAction}
+              <Icon name="arrow" />
+            </button>
+            <div className="empty-atlas">
+              <span className="empty-mark" aria-hidden="true">
+                +
+              </span>
+              <div>
+                <p>{copy.emptyLabel}</p>
+                <span>{copy.emptyDescription}</span>
+              </div>
             </div>
-            <span className="build-next" aria-hidden="true">
-              01 <Icon name="arrow" />
-            </span>
+          </motion.aside>
+
+          <div className="map-options" aria-label="Capas del globo">
+            <button
+              className="option-button"
+              aria-pressed={countriesVisible}
+              disabled={!ready || status.countryCount === 0}
+              onClick={toggleCountries}
+            >
+              <Icon name="layers" />
+              <span>{copy.countries}</span>
+              <span className="toggle-indicator" aria-hidden="true" />
+            </button>
+            <button
+              className="option-button"
+              aria-pressed={lighting}
+              disabled={!ready}
+              onClick={toggleLighting}
+            >
+              <Icon name="sun" />
+              <span>{copy.lighting}</span>
+              <span className="toggle-indicator" aria-hidden="true" />
+            </button>
           </div>
 
-          <section
-            className="principles-section"
-            id="proyecto"
-            aria-labelledby="principles-title"
-          >
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">{copy.principlesLabel}</p>
-                <h2 id="principles-title">{copy.principlesTitle}</h2>
+          {status.state === 'loading' && (
+            <div className="loading-indicator" aria-hidden="true">
+              <span className="loading-orbit" />
+              <span>{copy.status.loading}</span>
+            </div>
+          )}
+          {status.state === 'error' && (
+            <div className="globe-fallback">
+              <div className="fallback-symbol">
+                <Icon name="orbit" />
               </div>
-              <p>{copy.principlesIntro}</p>
-            </div>
-            <div className="principles-grid">
-              {copy.principles.map((item) => (
-                <article className="principle-card" key={item.title}>
-                  <div className="principle-icon">
-                    <Icon name={item.icon} />
-                  </div>
-                  <h3>{item.title}</h3>
-                  <p>{item.description}</p>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section
-            className="roadmap-section"
-            id="hoja-de-ruta"
-            aria-labelledby="roadmap-title"
-          >
-            <div className="section-heading">
+              <h2>{copy.fallback.title}</h2>
+              <p>{copy.fallback.description}</p>
               <div>
-                <p className="eyebrow">{copy.roadmapLabel}</p>
-                <h2 id="roadmap-title">{copy.roadmapTitle}</h2>
-              </div>
-              <p>{copy.roadmapIntro}</p>
-            </div>
-            <div className="phase-grid" aria-label="Fases del proyecto">
-              {copy.phases.map((item, index) => (
-                <button
-                  key={item.title}
-                  className={`phase-button ${selectedPhase === index ? 'selected' : ''}`}
-                  aria-pressed={selectedPhase === index}
-                  aria-controls="phase-detail"
-                  onClick={() => selectPhase(index)}
-                >
-                  <span className="phase-number">
-                    {String(index).padStart(2, '0')}
-                    {index === 0 && (
-                      <span className="phase-check" aria-label="preparada">
-                        ✓
-                      </span>
-                    )}
-                  </span>
-                  <span className="phase-title">{item.title}</span>
-                  <span className="phase-state">
-                    {index === 0
-                      ? copy.phaseReady
-                      : index === 1
-                        ? copy.phaseNext
-                        : copy.phaseFuture}
-                  </span>
+                <button className="primary-button" onClick={retryGlobe}>
+                  {copy.fallback.retry}
                 </button>
-              ))}
+                <button
+                  className="secondary-button"
+                  onClick={() => openDialog('accessible')}
+                >
+                  {copy.accessible}
+                </button>
+              </div>
             </div>
-            <div
-              id="phase-detail"
-              className="phase-detail"
+          )}
+
+          <div
+            className="camera-controls"
+            role="group"
+            aria-label="Controles de cámara"
+          >
+            <button
+              className="icon-button"
+              disabled={!ready}
+              aria-label={copy.home}
+              title={copy.home}
+              onClick={() => globe.current?.home()}
+            >
+              <Icon name="home" />
+            </button>
+            <button
+              className="icon-button"
+              disabled={!ready || reducedMotion}
+              aria-label={copy.rotation}
+              title={reducedMotion ? copy.reducedMotion : copy.rotation}
+              aria-pressed={rotating}
+              onClick={toggleRotation}
+            >
+              <Icon name={rotating ? 'pause' : 'rotate'} />
+            </button>
+            <button
+              className="icon-button"
+              disabled={!ready}
+              aria-label={copy.tilt}
+              title={copy.tilt}
+              onClick={() => globe.current?.tilt()}
+            >
+              <Icon name="tilt" />
+            </button>
+            <span className="control-divider" aria-hidden="true" />
+            <button
+              className="icon-button"
+              disabled={!ready}
+              aria-label={copy.zoomOut}
+              title={copy.zoomOut}
+              onClick={() => globe.current?.zoomOut()}
+            >
+              <Icon name="minus" />
+            </button>
+            <button
+              className="icon-button"
+              disabled={!ready}
+              aria-label={copy.zoomIn}
+              title={copy.zoomIn}
+              onClick={() => globe.current?.zoomIn()}
+            >
+              <Icon name="plus" />
+            </button>
+          </div>
+
+          <div className="explorer-status">
+            <p className="phase-label">{copy.phase}</p>
+            <p
+              role="status"
               aria-live="polite"
-              aria-atomic="true"
+              data-testid="globe-status"
+              data-state={status.state}
             >
-              <div>
-                <span className="eyebrow">
-                  {copy.phaseLabel} {String(selectedPhase).padStart(2, '0')}
-                </span>
-                <h3>{phase.subtitle}</h3>
-              </div>
-              <p>{phase.description}</p>
-              <Icon name={selectedPhase === 0 ? 'layers' : 'orbit'} />
-            </div>
-          </section>
-        </main>
-
-        <footer className="site-footer">
-          <div className="footer-brand">
-            ATLAS<span>{copy.tagline}</span>
+              <span className={`status-dot ${status.state}`} />
+              {copy.status[status.state]}
+            </p>
+            {status.message && <p className="status-note">{status.message}</p>}
           </div>
-          <p>{copy.footer}</p>
-          <span>{copy.footerVersion}</span>
-        </footer>
+          <button
+            className="help-button icon-button"
+            aria-label={copy.help}
+            title={copy.help}
+            onClick={() => openDialog('help')}
+          >
+            <Icon name="help" />
+          </button>
+          {reducedMotion && <p className="sr-only">{copy.reducedMotion}</p>}
+        </main>
+        <InfoDialog />
       </div>
-      <PrivacyDialog />
     </>
   );
 }

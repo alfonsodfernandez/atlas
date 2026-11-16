@@ -4,16 +4,16 @@ Un atlas personal para recorrer, en un globo terráqueo 3D, los lugares que has
 visitado. El proyecto se construye por fases a partir de exportaciones de Google
 Maps Timeline, con el tratamiento de datos en tu propio ordenador.
 
-**Estado: Fase 0 — andamiaje.** Esta versión prepara la aplicación, las
-comprobaciones de calidad y las barreras de privacidad. La pantalla inicial
-permite consultar la hoja de ruta y la política de privacidad. El motivo orbital
-es una ilustración: Cesium, el historial, las estadísticas y la importación de
-datos se incorporarán en las siguientes fases. No contiene viajes personales.
+**Estado: Fase 1 — globo; publicación pendiente de verificar.** La Fase 0 está
+integrada y este hito incorpora un globo Cesium WGS84 con controles, atmósfera,
+iluminación día/noche y una capa de países. La vista básica usa mapas locales y
+funciona sin claves API. Todavía no contiene historial, visitas ni estadísticas
+personales: la importación y el saneado llegan en la Fase 2.
 
 La hoja de ruta completa está en [PLAN.md](PLAN.md); las instrucciones técnicas
 para continuar el desarrollo, en [AGENTS.md](AGENTS.md).
 
-![Pantalla inicial de ATLAS en Fase 0](docs/images/fase-0.png)
+![Globo Cesium con cartografía local y fronteras de Natural Earth](docs/images/fase-1.png)
 
 ## Arrancar en local
 
@@ -42,9 +42,46 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-GitHub Actions ejecuta las comprobaciones de la Fase 0 en cada push y pull
-request. Los E2E actuales comprueban la pantalla inicial; los del globo se
-añadirán cuando exista esa funcionalidad.
+GitHub Actions ejecuta privacidad, formato, lint, tipos, pruebas y build en cada
+push y pull request. Los E2E de esta fase comprueban el globo y sus controles en
+el navegador; los resultados de validación se registran en [PLAN.md](PLAN.md).
+
+## Explorar el globo
+
+Arrastra para girar la Tierra y usa la rueda o los controles de zoom para
+acercarte. En móvil puedes usar los gestos táctiles. La interfaz permite volver
+a la vista inicial, inclinar la cámara y activar o desactivar las fronteras y la
+iluminación día/noche.
+
+El área del globo también se puede enfocar con Tab: las flechas mueven la cámara,
+`+` y `−` controlan el zoom, y `Home` recupera la vista inicial. La rotación lenta
+se detiene al interactuar y se desactiva si el sistema solicita movimiento
+reducido. Si WebGL no está disponible, la aplicación muestra una alternativa
+accesible con información y una opción para reintentar.
+
+La imagen de la Tierra de NASA y la capa Natural Earth Admin 0, escala 1:50m,
+se sirven desde `public/maps/`, con atribuciones visibles. La vista básica no
+consulta servidores de mapas y representa un **elipsoide WGS84 sin relieve**;
+no simula edificios ni terreno que no estén disponibles.
+
+La [procedencia y las licencias de la cartografía](public/maps/README.md)
+incluyen versiones y hashes. Las 242 entidades de Natural Earth incluyen
+territorios y áreas disputadas; no equivalen a países reconocidos ni visitados.
+
+### Terreno y edificios opcionales
+
+Copia `.env.example` a `.env.local` en la raíz, añade las claves que quieras usar
+y reinicia Vite:
+
+- `VITE_CESIUM_ION_TOKEN`: terreno mundial e imágenes Bing mediante Cesium ion.
+- `VITE_GOOGLE_MAPS_API_KEY`: Google Photorealistic 3D Tiles; requiere acceso a
+  la API correspondiente y la facturación que establezca Google.
+
+Sin claves, o si el proveedor falla, se conserva el globo básico local. Los modos
+opcionales solicitan recursos a sus proveedores y pueden transmitir la zona del
+mapa que estás mirando. No contienen ni reciben datos de Timeline en esta fase.
+Las variables de Vite son visibles en el navegador: restringe las claves al
+dominio y a las APIs necesarias.
 
 ## Privacidad
 
@@ -68,6 +105,11 @@ Estas barreras evitan errores comunes, pero **no convierten cualquier JSON en
 datos publicables**. El pipeline de saneado aún no está implementado. No añadas
 historial real a `public/`: todo lo que contenga esa carpeta formará parte del
 build público.
+
+Los mapas básicos se sirven con la aplicación. Activar terreno o edificios
+opcionales implica contactar con Cesium o Google para cargar mapas; esto es
+distinto del futuro procesamiento local del historial. Los archivos originales
+de Timeline deberán permanecer siempre en el ordenador del usuario.
 
 El contrato previsto para la Fase 2 es publicar únicamente
 `public/data/atlas.json`, validado y agregado:
@@ -114,20 +156,30 @@ scripts/                  Comprobaciones y futura CLI
 data/sample/              Documentación del futuro dataset sintético
 data/raw/                 Exportaciones locales, ignoradas por Git
 public/data/              Futura salida agregada y saneada
+public/maps/              Imagen terrestre y países, con fuentes y atribuciones
 .github/workflows/        Integración continua
 ```
 
 ## Desplegar
 
-El destino elegido es **GitHub Pages**, con la base de Vite `/atlas/`. La
-publicación automática y la comprobación del globo desplegado pertenecen a la
-Fase 1; la Fase 0 no tiene una URL pública operativa.
+El destino elegido es **GitHub Pages**. `.github/workflows/deploy.yml` prepara
+el build y la publicación después de una CI correcta en `main`; también admite
+ejecución manual desde `main`. Vuelve a comprobar privacidad, formato, lint,
+tipos y pruebas unitarias antes de publicar y usa las acciones oficiales de
+Pages. La CI previa en `main` incluye los E2E. La base local es `/atlas/`; el
+workflow emplea la base que devuelve GitHub al configurar el despliegue.
 
-En la Fase 1 se añadirá `.github/workflows/deploy.yml` para publicar desde `main`.
-En GitHub habrá que elegir **Settings → Pages → Build and deployment → Source:
-GitHub Actions**. El repositorio es privado: la disponibilidad de Pages depende
-del plan y de las políticas de la cuenta; no se cambiará su visibilidad de forma
-automática.
+**La activación de Pages y la URL pública siguen pendientes de verificar.** La
+conexión de desarrollo recibe HTTP 403 al consultar la configuración de Pages.
+En GitHub, selecciona **Settings → Pages → Build and deployment → Source:
+GitHub Actions** si esa opción está disponible y ejecuta el workflow de
+publicación. El repositorio es privado: la disponibilidad de Pages depende del
+plan y de las políticas de la cuenta. No se cambia su visibilidad automáticamente.
+
+Para los mapas opcionales publicados, configura los secrets de Actions
+`CESIUM_ION_TOKEN` y/o `GOOGLE_MAPS_API_KEY`. El workflow los asigna a
+`VITE_CESIUM_ION_TOKEN` y `VITE_GOOGLE_MAPS_API_KEY` durante el build. Déjalos
+sin definir para publicar la vista básica sin claves.
 
 Para un **dominio propio o subdominio**, compila con
 `ATLAS_BASE_PATH=/ npm run build`, añade `public/CNAME` con tu dominio antes del
@@ -154,13 +206,9 @@ Adapta el dominio y habilita TLS en tu servidor. Para servir en la raíz del
 dominio, cambia la base a `/`, recompila y ajusta el directorio y la ruta de
 Nginx. Sube únicamente el build; no copies el repositorio completo ni `data/raw/`.
 
-Los tokens opcionales de Cesium ion y Google Maps se conectarán en la Fase 1.
-Las variables de Vite son visibles en el navegador: las claves de mapas deben
-restringirse al dominio y a las APIs necesarias. La versión básica funcionará
-con imágenes sin clave y atribución a sus proveedores.
-
 ## Próximo hito
 
-La Fase 1 integrará Cesium con un globo WGS84, imágenes sin clave, atmósfera,
-iluminación día/noche, controles y capa de países Natural Earth. Después se
-investigarán los formatos actuales de Timeline antes de escribir los parsers.
+Tras verificar el globo y su publicación, la Fase 2 investigará los formatos
+actuales de Timeline antes de escribir los parsers. Incorporará datos sintéticos,
+geocodificación offline y el pipeline que genere un `atlas.json` saneado. No es
+necesario exportar el historial para explorar esta versión.
