@@ -33,8 +33,8 @@ La publicación comienza en Fase 1 y no bloquea este hito.
 
 ## Fase 1 — Globo
 
-Rama: `fase-1-globo`. Implementación en curso de revisión; las casillas de código
-no sustituyen la validación local, CI ni la comprobación del despliegue.
+Rama: `fase-1-globo`. Código verificado en local y CI; queda pendiente comprobar
+la publicación. Las casillas de código no sustituyen el despliegue operativo.
 
 - [x] Integrar CesiumJS con carga diferida y globo WGS84.
 - [x] Seleccionar imagen NASA sin clave, servida localmente, y mostrar atribuciones.
@@ -48,7 +48,7 @@ no sustituyen la validación local, CI ni la comprobación del despliegue.
 - [x] Añadir E2E de canvas y ausencia de errores de la aplicación.
 - [x] Añadir `deploy.yml`, condicionado a CI correcta en `main`, y ejecución manual.
 - [x] Verificar instalación limpia, calidad, build y E2E del globo.
-- [ ] Confirmar CI verde para la revisión actual de la Fase 1.
+- [x] Confirmar CI verde para la revisión actual de la Fase 1.
 - [ ] Activar GitHub Pages y verificar el despliegue desde `main`.
 - [ ] Comprobar que la URL pública muestra el globo girable sin claves API.
 
@@ -256,9 +256,17 @@ Comprobado en el entorno de desarrollo:
   posición real inmediatamente después de cada comando, sin ampliar los tiempos
   de espera de las pruebas ni modificar el movimiento de la cámara.
 
-Falta confirmar la CI del commit final y la publicación en GitHub Pages. La API
-de Pages devuelve 403 y la URL esperada devuelve 404; no se presenta como un
-despliegue operativo.
+CI completa superada para `8e20b0a` el 16 de noviembre de 2026 tanto en
+[push](https://github.com/alfonsodfernandez/atlas/actions/runs/43832305994) como en
+[PR](https://github.com/alfonsodfernandez/atlas/actions/runs/43832314199).
+La integración de este hito se sigue en la
+[PR #2](https://github.com/alfonsodfernandez/atlas/pull/2).
+
+Falta comprobar la publicación en GitHub Pages. La API de Pages devuelve 403 y
+la URL esperada devuelve 404; no se presenta como un despliegue operativo. El
+navegador compartido tampoco pudo abrir la configuración en esta sesión por un
+error del entorno, por lo que la activación puede requerir la intervención del
+propietario en Settings → Pages → GitHub Actions.
 
 No se ha verificado una URL pública ni el funcionamiento con claves opcionales
 de Cesium ion o Google. La configuración básica no depende de esas claves.
