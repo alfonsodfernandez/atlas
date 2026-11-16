@@ -1,10 +1,13 @@
 # ATLAS — hoja de ruta
 
-La **Fase 0 está integrada en `main`** y se trabaja en la **Fase 1 — Globo**.
-La publicación sigue pendiente de verificar. Se mantiene un proyecto funcional
-al cerrar cada hito, sin solicitar ni utilizar datos reales para desarrollar.
-Este plan describe el alcance completo; las fases futuras no son funcionalidades
-ya disponibles.
+Las Fases 0 y 1 originales están integradas en `main`. El hito vigente es
+**reescribir el visor en WebGL nativo por rendimiento**, a petición explícita del
+usuario el 16 de noviembre de 2026. La Tierra y la interfaz se programan a mano;
+esta decisión sustituye el stack inicial de Cesium y frameworks de UI.
+
+Se mantiene el avance por fases y un proyecto funcional en cada hito. No se
+solicitan ni utilizan datos reales para desarrollar. Las funciones futuras de
+Timeline, viajes y estadísticas siguen pendientes.
 
 ## Fase 0 — Andamiaje
 
@@ -33,26 +36,40 @@ La publicación comienza en Fase 1 y no bloquea este hito.
 
 ## Fase 1 — Globo
 
-Rama: `fase-1-globo`. Código verificado en local y CI; queda pendiente comprobar
-la publicación. Las casillas de código no sustituyen el despliegue operativo.
+La implementación original con Cesium se integró mediante la
+[PR #2](https://github.com/alfonsodfernandez/atlas/pull/2), commit `9ee8fbf` en
+`main`. Su código, pruebas y captura están registrados en la validación histórica
+al final del documento. El usuario ha pedido sustituirla por un motor propio para
+reducir la lentitud; sus resultados no validan automáticamente la reescritura.
 
-- [x] Integrar CesiumJS con carga diferida y globo WGS84.
-- [x] Seleccionar imagen NASA sin clave, servida localmente, y mostrar atribuciones.
-- [x] Añadir atmósfera, estrellas e iluminación día/noche.
-- [x] Rotación lenta que se detiene al interactuar; respetar movimiento reducido.
-- [x] Controles de ratón, táctil y teclado, con adaptación móvil y alternativa
-      accesible ante fallo de WebGL.
-- [x] Incorporar países Natural Earth 1:50m y documentar procedencia/licencia.
-- [x] Preparar opciones de Cesium ion y Google Photorealistic 3D Tiles con
-      degradación a las imágenes gratuitas.
-- [x] Añadir E2E de canvas y ausencia de errores de la aplicación.
-- [x] Añadir `deploy.yml`, condicionado a CI correcta en `main`, y ejecución manual.
-- [x] Verificar instalación limpia, calidad, build y E2E del globo.
-- [x] Confirmar CI verde para la revisión actual de la Fase 1.
-- [ ] Activar GitHub Pages y verificar el despliegue desde `main`.
-- [ ] Comprobar que la URL pública muestra el globo girable sin claves API.
+### Reescritura por rendimiento — vigente
 
-**Criterio de cierre:** una URL pública muestra el globo girable sin claves API.
+Rama: `fase-1-webgl-nativo`.
+
+- [x] Dibujar un elipsoide WGS84 con geometría, cámara, matrices y shaders GLSL
+      propios sobre WebGL, con textura NASA, estrellas e iluminación.
+- [x] Sustituir la interfaz por TypeScript, DOM y CSS nativos; retirar Cesium,
+      React, Motion, Zustand y Tailwind del runtime y sus assets auxiliares.
+- [x] Decodificar las fronteras binarias verificadas y dibujarlas en un lote GPU.
+- [x] Mantener giro, zoom, inclinación, teclado y gestos táctiles.
+- [x] Dibujar al cambiar la escena y pausar la animación cuando el visor o la
+      pestaña dejan de estar visibles; respetar movimiento reducido.
+- [x] Limitar resolución y densidad de píxeles para controlar el coste gráfico.
+- [x] Mantener privacidad, ayuda, proyecto y vista accesible con foco y teclado.
+- [x] Conservar atribuciones completas y visibles en escritorio y móvil.
+- [x] Liberar recursos y recuperar pérdidas de contexto o fallos de carga.
+- [x] Validar matemáticas, geometría, binario y privacidad con pruebas unitarias.
+- [x] Verificar el renderizado real y los controles con E2E de escritorio/móvil.
+- [x] Cumplir el presupuesto de 64 KiB de JS de build y 24 KiB con gzip.
+- [x] Registrar comparación de tamaño y arranque con el mismo método antes/después.
+- [x] Confirmar instalación limpia, formato, lint, tipos, tests y build locales.
+- [x] Completar el E2E final tras los ajustes de liberación de recursos GPU.
+- [ ] Confirmar CI verde para la revisión nativa.
+- [ ] Publicar la revisión nativa y comprobar la URL y sus recursos.
+
+**Criterio de cierre:** globo nativo funcional, presupuesto de descarga comprobado,
+pruebas verdes y publicación verificada. Los informes de tamaño y arranque no
+sustituyen una medición de FPS en dispositivos físicos.
 
 ## Fase 2 — Datos
 
@@ -139,7 +156,7 @@ las preferencias de precisión del usuario.
 
 Rama prevista: `fase-7-pulido`.
 
-- [ ] Medir y mejorar carga, fluidez de Cesium y rendimiento en móvil.
+- [ ] Medir y mejorar carga, fluidez del motor propio y rendimiento en móvil.
 - [ ] Revisar accesibilidad, teclado, contraste y movimiento reducido.
 - [ ] Completar traducción al inglés sobre los textos centralizados.
 - [ ] Completar E2E y medir Lighthouse en la parte no WebGL; objetivo ≥90 en
@@ -152,56 +169,86 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
 
 ## Decisiones / Pendiente de Alfonso
 
-- **Fases:** Fase 0 integrada; Fase 1 en curso. Los parsers, datos y estadísticas
-  pertenecen a los siguientes hitos y todavía no están disponibles.
-- **Git:** al estar vacío el repositorio, se inicializa `main` con un commit de
-  privacidad y después se trabaja en `fase-0-andamiaje`. Commits convencionales
-  pequeños, merge únicamente tras comprobar CI, nunca `push --force` a `main`.
-- **Stack:** se mantiene Vite + React + TypeScript strict, npm workspaces,
-  Zustand, Tailwind y Motion. Cesium se integra en Fase 1 con importación
-  diferida y assets de runtime copiados localmente. Referencia:
-  [guía oficial de CesiumJS](https://cesium.com/learn/cesiumjs-learn/cesiumjs-quickstart/).
-- **Mapa básico:** textura NASA Blue Marble y países Natural Earth 1:50m
-  versionados en `public/maps/`, sin peticiones a proveedores de mapas en
-  runtime. El globo básico es un elipsoide WGS84, sin relieve ni edificios. Los
-  datos geográficos no representan visitas y las 242 entidades de Natural Earth
-  incluyen territorios y áreas disputadas; no son un contador de países visitados.
-  Fuentes, licencias y hashes en [public/maps/README.md](public/maps/README.md).
-- **Dependencias:** Vite se declara también en la raíz para que Vitest y los
-  plugins compartan una sola versión. Se fija una resolución de `minimatch`
-  11.0.8 o posterior para `typescript-estree`, evitando la dependencia afectada
-  por GHSA-g3hv-75wg-m249; lint y tipos verifican la compatibilidad.
-- **Privacidad:** no se necesita información personal para Fase 0. Solo se
-  versiona un ejemplo de configuración con listas vacías. Su estructura es
-  provisional hasta que la Fase 2 defina el contrato y la validación.
-- **Pruebas:** Vitest cubre las barreras de privacidad, la cartografía y la lógica
-  que exista; Playwright comprueba el globo real en la Fase 1. Los parsers tendrán
-  pruebas cuando se implementen. No se da por verificado WebGL con un mock.
-- **Investigación:** no se ha escrito ningún parser de Timeline. Antes de
-  hacerlo hay que comprobar los formatos actuales en fuentes externas y citar
-  sus ejemplos/documentación.
-- **Datos sintéticos:** no hay estadísticas personales ni historial simulado
-  presentado como real. El dataset representativo se construirá en Fase 2.
-- **Hosting:** se respeta GitHub Pages como destino; no se crea otro servicio.
-  La base local es `/atlas/`; el workflow usa la base de `configure-pages`.
-  La consulta a la configuración de Pages devuelve HTTP 403 (`Resource not
-accessible by integration`). La activación y la URL pública no están
-  verificadas. Alfonso puede comprobar Settings → Pages → GitHub Actions y la
-  disponibilidad según el plan; no se cambia la visibilidad privada del repo.
-- **Claves opcionales:** `.env.local` en la raíz configura
-  `VITE_CESIUM_ION_TOKEN` y `VITE_GOOGLE_MAPS_API_KEY`. En Actions, los secrets
-  `CESIUM_ION_TOKEN` y `GOOGLE_MAPS_API_KEY` se mapean a esas variables al compilar.
-  El modo básico no necesita claves. Las variables del cliente son públicas;
-  los mapas opcionales hacen peticiones a los proveedores y requieren las
-  restricciones de dominio/API correspondientes.
-- **Pendiente de Alfonso, más adelante:** exportar su historial en su equipo,
-  revisar exclusiones y decidir qué lugares permite publicar con más precisión.
-  Ninguna de estas decisiones bloquea el andamiaje.
-- **Integración de Fase 0:** resuelta. Tras la indicación de continuar del usuario,
-  la PR #1 se fusionó correctamente en `main` como `bcbb4b4`. El rechazo de
-  aprobación anterior ya no bloquea esta fase.
+- **Cambio autorizado de arquitectura:** el usuario indica que todo va demasiado
+  lento y solicita programar la Tierra a mano y en bajo nivel. Se adopta WebGL
+  directo con TypeScript/GLSL y una interfaz DOM/CSS. Esta petición sustituye la
+  decisión inicial de Cesium y los frameworks de UI; se conserva Vite como
+  herramienta de desarrollo y build.
+- **Rendimiento medido antes del cambio:** el build de `9ee8fbf` contiene
+  4.615.573 bytes de JS y 1.258.993 bytes con gzip, además de unos 14 MB de archivos
+  publicados y 342 assets auxiliares del SDK. Informe exacto en
+  [before-bundle.json](docs/performance/before-bundle.json).
+- **Método de arranque:** Chromium con SwiftShader, navegador frío, viewport
+  1280 × 850 a densidad 1, movimiento reducido y servidor local. La referencia
+  registró 3.110 ms hasta el marcador de globo preparado y 3.406 ms hasta el de
+  fronteras, 24 solicitudes y 8.312.969 bytes de recursos decodificados. Fuente:
+  [before-runtime.json](docs/performance/before-runtime.json). Los marcadores
+  miden inicialización de la aplicación, no FPS ni el fin de toda la rasterización.
+- **Presupuesto y resultado:** el build nativo contiene 41.046 bytes de JS y
+  14.920 bytes con gzip, dentro de los límites de 64 KiB y 24 KiB. La estimación
+  inicial de JS/CSS con gzip y mapas es de 590.694 bytes, dentro de 700 KiB.
+  La reducción de JavaScript bruto es del 99,1 %. Las métricas exactas y los
+  límites de la comparación están en [docs/performance/README.md](docs/performance/README.md).
+- **Cartografía:** se conserva NASA Blue Marble original (356.467 bytes) y
+  Natural Earth 1:50m. `borders.bin` usa 215.296 bytes para las 242 entidades,
+  1.632 anillos y 52.186 puntos. La geometría se agrupa para dibujar; las entidades
+  incluyen territorios y áreas disputadas y no son países visitados. Fuentes,
+  formato, licencias y hashes en [public/maps/README.md](public/maps/README.md).
+- **Recursos y proveedores:** el motor nuevo usa cartografía local. Los modos
+  Cesium ion/Bing y Google 3D Tiles y sus claves pertenecen a la versión anterior;
+  no intervienen en la reescritura. El nuevo hito prioriza coste de descarga y
+  renderizado sobre terreno o edificios de esos proveedores.
+- **Fases:** el trabajo actual sigue dentro del globo de Fase 1. Los parsers,
+  datos, viajes y estadísticas de Fase 2 y siguientes no están implementados.
+- **Privacidad:** se mantienen el `.gitignore`, el hook del índice y el control
+  de CI. El scanner no sustituye el saneado futuro; solo se versiona un ejemplo
+  de configuración sin coordenadas personales.
+- **Investigación:** antes de programar parsers hay que comprobar los formatos
+  actuales de Timeline en fuentes externas y citar ejemplos/documentación.
+- **Datos de desarrollo:** solo muestras sintéticas inequívocas cuando llegue
+  la Fase 2; ninguna estadística inventada se presenta como historial de Alfonso.
+- **Hosting:** se mantiene GitHub Pages, sin cambiar la visibilidad del repositorio
+  ni registrar otro servicio. El usuario ha mostrado **Source: GitHub Actions**
+  guardado en la configuración. Los 403/404 anteriores quedan como historial; el
+  resultado del despliegue y la URL de la revisión nativa se verificarán al cerrar
+  este hito. El workflow publica únicamente el main actual con CI correcta.
+- **Git:** ramas por fase, commits convencionales y merge con comprobaciones
+  verdes. Nunca `push --force` a `main`.
+- **Pendiente de Alfonso, más adelante:** exportar su historial en su propio
+  equipo y decidir zonas de exclusión y lugares públicos. Ninguno de esos datos
+  es necesario para desarrollar el motor.
 
-## Validación de Fase 0
+## Validación de la reescritura nativa
+
+Comprobaciones locales comunicadas para la revisión nativa:
+
+- `npm ci`, `npm run check` y `npm run build`: correctos; 48 pruebas Vitest verdes.
+- Primera suite E2E nativa: 14 casos verdes en 35,3 s. Se prepara una ejecución
+  final después de ajustar la liberación de recursos GPU; no se considera
+  completada esa verificación hasta registrar su resultado.
+- JavaScript de build: **41.046 bytes brutos / 14.920 bytes gzip** frente a
+  **4.615.573 / 1.258.993** anteriores. Reducción del 99,1 % en JS bruto.
+- CSS con gzip: 4.011 bytes. NASA: 356.467 bytes. Fronteras: 215.296 bytes.
+  Estimación inicial de JS/CSS con gzip y mapas: 590.694 bytes; excluye HTML y
+  cabeceras. `check:bundle` cumple los tres presupuestos registrados.
+- Una muestra fría por versión con el mismo método dio **3.110 → 247 ms** hasta
+  el marcador del globo y **3.406 → 292 ms** hasta el de fronteras. Los subrecursos
+  pasaron de 24 a 5; sus bytes decodificados, de 8.312.969 a 627.383. Se observaron
+  6 tareas largas / 735 ms antes y 1 / 139 ms después.
+- Captura real del visor: [webgl-nativo.png](docs/images/webgl-nativo.png).
+- Informes: [before-bundle.json](docs/performance/before-bundle.json),
+  [after-bundle.json](docs/performance/after-bundle.json),
+  [before-runtime.json](docs/performance/before-runtime.json) y
+  [after-runtime.json](docs/performance/after-runtime.json).
+  [Método y reproducción](docs/performance/README.md).
+
+La ejecución E2E final pasa los 14 casos en 35,9 segundos, incluidos recuperación
+de contexto, gestos táctiles, imagen real y reposo sin dibujar. Quedan pendientes
+la CI de la revisión y la comprobación del despliegue público. Estos datos de inicialización
+con SwiftShader no acreditan FPS ni tiempos garantizados en dispositivos físicos.
+Las cifras y pruebas históricas de abajo corresponden a las versiones anteriores.
+
+## Validación histórica de Fase 0
 
 Comprobado en local con Node.js 24 y npm 11:
 
@@ -232,7 +279,7 @@ como `bcbb4b4`.
 La Fase 0 no tuvo despliegue público. Sus resultados describen el andamiaje de
 ese momento, no la verificación del globo de la Fase 1.
 
-## Validación de Fase 1
+## Validación histórica de Fase 1 con Cesium
 
 Comprobado en el entorno de desarrollo:
 
@@ -262,11 +309,12 @@ CI completa superada para `8e20b0a` el 16 de noviembre de 2026 tanto en
 La integración de este hito se sigue en la
 [PR #2](https://github.com/alfonsodfernandez/atlas/pull/2).
 
-Falta comprobar la publicación en GitHub Pages. La API de Pages devuelve 403 y
-la URL esperada devuelve 404; no se presenta como un despliegue operativo. El
-navegador compartido tampoco pudo abrir la configuración en esta sesión por un
-error del entorno, por lo que la activación puede requerir la intervención del
-propietario en Settings → Pages → GitHub Actions.
+En esa verificación histórica faltaba comprobar la publicación. La API de Pages
+devolvía 403 y la URL esperada devolvía 404. El navegador compartido tampoco pudo
+abrir la configuración en aquella sesión por un error del entorno y se documentó
+el paso manual. Después, el usuario mostró la fuente GitHub Actions guardada;
+el despliegue actual debe verificarse de nuevo.
 
-No se ha verificado una URL pública ni el funcionamiento con claves opcionales
-de Cesium ion o Google. La configuración básica no depende de esas claves.
+En esa revisión no se verificó una URL pública ni el funcionamiento con claves
+opcionales de Cesium ion o Google. Esos modos pertenecen a la implementación
+anterior y se retiran en la reescritura nativa.
