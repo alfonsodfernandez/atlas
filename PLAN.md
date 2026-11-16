@@ -250,6 +250,11 @@ Comprobado en el entorno de desarrollo:
   el prefijo `node_modules/cesium/Build/Cesium` para servir `/atlas/cesium/`.
 - Las pruebas usan SwiftShader y no constituyen una medición de FPS en hardware
   de escritorio o móvil; esa medición corresponde al pulido de la Fase 7.
+- El 16 de noviembre se identificó un retraso en los metadatos de cámara bajo
+  renderizado por software: la cámara ya había girado, pero el evento del
+  siguiente frame aún no había actualizado su descripción. Ahora se lee la
+  posición real inmediatamente después de cada comando, sin ampliar los tiempos
+  de espera de las pruebas ni modificar el movimiento de la cámara.
 
 Falta confirmar la CI del commit final y la publicación en GitHub Pages. La API
 de Pages devuelve 403 y la URL esperada devuelve 404; no se presenta como un

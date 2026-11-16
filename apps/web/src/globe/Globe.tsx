@@ -79,6 +79,22 @@ function setHome(
   viewer.scene.requestRender();
 }
 
+/** Describe the current pose, independently of the next scheduled WebGL frame. */
+function describeCamera(viewer: Viewer, element: HTMLElement | null): void {
+  if (!element || viewer.isDestroyed()) return;
+  const position = viewer.camera.positionCartographic;
+  element.dataset.cameraHeight = position.height.toFixed(2);
+  element.dataset.cameraLongitude = CesiumMath.toDegrees(
+    position.longitude,
+  ).toFixed(5);
+  element.dataset.cameraLatitude = CesiumMath.toDegrees(
+    position.latitude,
+  ).toFixed(5);
+  element.dataset.cameraPitch = CesiumMath.toDegrees(
+    viewer.camera.pitch,
+  ).toFixed(2);
+}
+
 /** The module is lazy-loaded by the shell; no Cesium work happens until mounted. */
 const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe(props, ref) {
   const container = useRef<HTMLDivElement>(null);
@@ -103,6 +119,8 @@ const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe(props, ref) {
       propsRef.current.onInteraction();
       viewer.camera.cancelFlight();
       action(viewer);
+      // Camera actions are synchronous even when geometry delays the render loop.
+      describeCamera(viewer, container.current);
       viewer.scene.requestRender();
     };
     return {
@@ -181,18 +199,7 @@ const Globe = forwardRef<GlobeHandle, GlobeProps>(function Globe(props, ref) {
     };
 
     const updateCameraDescription = (): void => {
-      if (!viewer || viewer.isDestroyed()) return;
-      const position = viewer.camera.positionCartographic;
-      element.dataset.cameraHeight = position.height.toFixed(2);
-      element.dataset.cameraLongitude = CesiumMath.toDegrees(
-        position.longitude,
-      ).toFixed(5);
-      element.dataset.cameraLatitude = CesiumMath.toDegrees(
-        position.latitude,
-      ).toFixed(5);
-      element.dataset.cameraPitch = CesiumMath.toDegrees(
-        viewer.camera.pitch,
-      ).toFixed(2);
+      if (viewer) describeCamera(viewer, element);
     };
 
     const loadCountries = async (current: Viewer): Promise<void> => {
