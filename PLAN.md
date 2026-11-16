@@ -64,7 +64,7 @@ Rama: `fase-1-webgl-nativo`.
 - [x] Registrar comparación de tamaño y arranque con el mismo método antes/después.
 - [x] Confirmar instalación limpia, formato, lint, tipos, tests y build locales.
 - [x] Completar el E2E final tras los ajustes de liberación de recursos GPU.
-- [ ] Confirmar CI verde para la revisión nativa.
+- [x] Confirmar CI verde para la revisión nativa.
 - [ ] Publicar la revisión nativa y comprobar la URL y sus recursos.
 
 **Criterio de cierre:** globo nativo funcional, presupuesto de descarga comprobado,
@@ -214,6 +214,10 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
   este hito. El workflow publica únicamente el main actual con CI correcta.
 - **Git:** ramas por fase, commits convencionales y merge con comprobaciones
   verdes. Nunca `push --force` a `main`.
+- **Integración nativa pendiente de Alfonso:** la revisión automática rechazó
+  fusionar la PR #3 porque modificar `main` activa el despliegue y requiere una
+  autorización explícita para fusionar y publicar. El código y sus checks están
+  listos; no se elude el bloqueo mediante Git ni otro mecanismo.
 - **Pendiente de Alfonso, más adelante:** exportar su historial en su propio
   equipo y decidir zonas de exclusión y lugares públicos. Ninguno de esos datos
   es necesario para desarrollar el motor.
@@ -243,8 +247,12 @@ Comprobaciones locales comunicadas para la revisión nativa:
   [Método y reproducción](docs/performance/README.md).
 
 La ejecución E2E final pasa los 14 casos en 35,9 segundos, incluidos recuperación
-de contexto, gestos táctiles, imagen real y reposo sin dibujar. Quedan pendientes
-la CI de la revisión y la comprobación del despliegue público. Estos datos de inicialización
+de contexto, gestos táctiles, imagen real y reposo sin dibujar. La CI de `8020fb0`
+pasa en [push](https://github.com/alfonsodfernandez/atlas/actions/runs/43900026345)
+y [PR](https://github.com/alfonsodfernandez/atlas/actions/runs/43900237582).
+La [PR #3](https://github.com/alfonsodfernandez/atlas/pull/3) está lista; quedan
+pendientes la autorización explícita para fusionar/publicar y la comprobación
+del despliegue público. Estos datos de inicialización
 con SwiftShader no acreditan FPS ni tiempos garantizados en dispositivos físicos.
 Las cifras y pruebas históricas de abajo corresponden a las versiones anteriores.
 
