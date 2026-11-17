@@ -1,9 +1,4 @@
-import {
-  createEarthMesh,
-  createStars,
-  decodeBorders,
-  MAX_TILT,
-} from './geometry';
+import { createEarthMesh, createStars, MAX_TILT } from './geometry';
 import {
   cameraPose,
   clamp,
@@ -15,25 +10,18 @@ import {
   perspective,
   sunDirection,
   wrapLongitude,
+  type CameraPose,
+  type PositionDescription,
   type Orbit,
   type Vec3,
 } from './math';
 import {
-  atmosphereFragment,
-  atmosphereVertex,
   earthFragment,
   earthVertex,
-  lineFragment,
-  lineVertex,
   starFragment,
   starVertex,
 } from './shaders';
-import type {
-  GlobeHandle,
-  GlobeProps,
-  GlobeSnapshot,
-  GlobeStatus,
-} from './types';
+import type { GlobeHandle, GlobeProps, GlobeStatus } from './types';
 
 interface Program {
   handle: WebGLProgram;
@@ -41,13 +29,9 @@ interface Program {
 }
 interface Graphics {
   earth: Program;
-  atmosphere: Program;
-  borders: Program;
   stars: Program;
   sphereVao: WebGLVertexArrayObject;
   starVao: WebGLVertexArrayObject;
-  borderVao: WebGLVertexArrayObject;
-  borderBuffer: WebGLBuffer;
   texture: WebGLTexture;
   indexCount: number;
 }
@@ -55,9 +39,11 @@ type Pointer = { x: number; y: number; button: number };
 
 const MIN_RANGE = 0.00005;
 const MAX_RANGE = 9.4;
-const MAX_PIXELS = 1_200_000;
+const MAX_PIXELS = 850_000;
+const AUTO_FRAME_INTERVAL = 1000 / 30;
+const STAR_COUNT = 384;
 
-/** Four batched draw calls, no scene graph, workers, framework, or idle render loop. */
+/** One opaque globe and one batch of stars, drawn only when needed. */
 export default class GlobeRenderer implements GlobeHandle {
   private readonly canvas = document.createElement('canvas');
   private readonly abort = new AbortController();
@@ -67,27 +53,34 @@ export default class GlobeRenderer implements GlobeHandle {
   private readonly view = new Float32Array(16);
   private readonly projection = new Float32Array(16);
   private readonly mvp = new Float32Array(16);
+  private readonly pose: CameraPose = {
+    eye: [0, 0, 0],
+    target: [0, 0, 0],
+    up: [0, 0, 0],
+  };
+  private readonly position: PositionDescription = {
+    longitude: 0,
+    latitude: 0,
+    heightM: 0,
+  };
+  private readonly onAnimationFrame = (time: number) => this.frame(time);
   private gl: WebGL2RenderingContext | null = null;
   private graphics: Graphics | null = null;
-  private bitmap: ImageBitmap | null = null;
-  private borderPositions: Float32Array | null = null;
-  private countryCount = 0;
-  private borderLoading = false;
+  private textureBlob: Blob | null = null;
   private imageLoaded = false;
-  private firstTextureDraw = false;
   private ready = false;
   private destroyed = false;
   private contextLost = false;
   private intersecting = true;
   private raf = 0;
   private lastFrame = 0;
+  private dirty = true;
   private frames = 0;
-  private drawCalls = 0;
   private pixelRatio = 1;
   private cssWidth = 1;
   private cssHeight = 1;
   private cameraTouched = false;
-  private status: GlobeStatus = { state: 'loading', countryCount: 0 };
+  private status: GlobeStatus = { state: 'loading' };
   private sun: Vec3 = sunDirection();
   private orbit: Orbit = { longitude: -15, latitude: 25, range: 2, tilt: 0 };
 
@@ -97,8 +90,8 @@ export default class GlobeRenderer implements GlobeHandle {
   ) {
     host.dataset.testid = 'atlas-globe';
     host.dataset.engine = 'native-webgl2';
-    host.dataset.countryCount = '0';
     host.dataset.frameCount = '0';
+    host.dataset.drawCalls = '0';
     this.canvas.setAttribute('aria-label', 'Globo terráqueo 3D de Atlas');
     this.canvas.tabIndex = -1;
     Object.assign(this.canvas.style, {
@@ -113,17 +106,18 @@ export default class GlobeRenderer implements GlobeHandle {
       this.gl = this.canvas.getContext('webgl2', {
         alpha: false,
         antialias: true,
-        depth: true,
+        depth: false,
         stencil: false,
         preserveDrawingBuffer: false,
         powerPreference: 'low-power',
       });
       if (!this.gl) throw new Error('WebGL 2 no disponible.');
+      void this.loadTexture();
       this.createGraphics();
       this.installEvents();
       this.resize();
-      void this.loadTexture();
     } catch {
+      this.abort.abort();
       this.releaseGraphics();
       this.report(
         'error',
@@ -136,19 +130,16 @@ export default class GlobeRenderer implements GlobeHandle {
     if (this.destroyed) return;
     const next: GlobeStatus = {
       state,
-      countryCount: this.countryCount,
       ...(message ? { message } : {}),
     };
     if (
       this.status.state === state &&
-      this.status.countryCount === next.countryCount &&
       this.status.message === next.message &&
       this.host.dataset.engineState === state
     )
       return;
     this.status = next;
     this.host.dataset.engineState = state;
-    this.host.dataset.countryCount = String(this.countryCount);
     this.host.setAttribute('aria-busy', String(state === 'loading'));
     this.options.onStatus(next);
   }
@@ -222,17 +213,10 @@ export default class GlobeRenderer implements GlobeHandle {
       'uSun',
       'uEye',
       'uLighting',
+      'uGrid',
     ]);
-    const atmosphere = this.program(atmosphereVertex, atmosphereFragment, [
-      'uMvp',
-      'uSun',
-      'uEye',
-      'uLighting',
-    ]);
-    const borders = this.program(lineVertex, lineFragment, ['uMvp']);
     const stars = this.program(starVertex, starFragment, [
-      'uView',
-      'uProjection',
+      'uMvp',
       'uPixelRatio',
     ]);
     const mesh = createEarthMesh();
@@ -248,21 +232,15 @@ export default class GlobeRenderer implements GlobeHandle {
       gl.vertexAttribPointer(location!, length!, gl.FLOAT, false, 32, offset!);
     }
     const starVao = this.vao();
-    this.buffer(gl.ARRAY_BUFFER, createStars());
+    this.buffer(gl.ARRAY_BUFFER, createStars(STAR_COUNT));
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 16, 0);
     gl.enableVertexAttribArray(1);
     gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 16, 12);
-    const borderVao = this.vao();
-    const borderBuffer = this.buffer(
-      gl.ARRAY_BUFFER,
-      this.borderPositions ?? new Float32Array(),
-    );
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 12, 0);
     const texture = gl.createTexture();
     if (!texture) throw new Error('No se pudo crear la textura.');
     this.gpuCleanup.push(() => gl.deleteTexture(texture));
+    gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
@@ -272,32 +250,19 @@ export default class GlobeRenderer implements GlobeHandle {
       gl.LINEAR_MIPMAP_LINEAR,
     );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      1,
-      1,
-      0,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      new Uint8Array([13, 34, 45, 255]),
-    );
     this.graphics = {
       earth,
-      atmosphere,
-      borders,
       stars,
       sphereVao,
       starVao,
-      borderVao,
-      borderBuffer,
       texture,
       indexCount: mesh.indices.length,
     };
     gl.useProgram(earth.handle);
     gl.uniform1i(earth.uniforms.get('uEarth') ?? null, 0);
-    if (this.bitmap) this.uploadTexture();
+    gl.clearColor(5 / 255, 10 / 255, 16 / 255, 1);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.cullFace(gl.BACK);
     gl.bindVertexArray(null);
   }
 
@@ -306,78 +271,59 @@ export default class GlobeRenderer implements GlobeHandle {
     this.graphics = null;
   }
 
-  private uploadTexture(): void {
-    const gl = this.gl!;
-    if (!this.graphics || !this.bitmap) return;
-    gl.bindTexture(gl.TEXTURE_2D, this.graphics.texture);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-    gl.texImage2D(
-      gl.TEXTURE_2D,
-      0,
-      gl.RGBA,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      this.bitmap,
-    );
-    gl.generateMipmap(gl.TEXTURE_2D);
+  private async uploadTexture(blob: Blob): Promise<void> {
+    const gl = this.gl;
+    const graphics = this.graphics;
+    if (!gl || !graphics || this.contextLost) return;
+    const bitmap = await createImageBitmap(blob, {
+      imageOrientation: 'none',
+      premultiplyAlpha: 'none',
+    });
+    try {
+      if (
+        this.abort.signal.aborted ||
+        this.graphics !== graphics ||
+        gl.isContextLost()
+      )
+        return;
+      gl.bindTexture(gl.TEXTURE_2D, graphics.texture);
+      gl.texImage2D(
+        gl.TEXTURE_2D,
+        0,
+        gl.RGB565,
+        gl.RGB,
+        gl.UNSIGNED_SHORT_5_6_5,
+        bitmap,
+      );
+      gl.generateMipmap(gl.TEXTURE_2D);
+      if (gl.isContextLost()) return;
+      if (gl.getError() !== gl.NO_ERROR)
+        throw new Error('No se pudo cargar la textura en la GPU.');
+      this.imageLoaded = true;
+      this.invalidate();
+    } finally {
+      // Keep only the compressed PNG for recovery, not the decoded bitmap.
+      bitmap.close();
+    }
   }
 
   private async loadTexture(): Promise<void> {
     try {
       const response = await fetch(
-        `${import.meta.env.BASE_URL}maps/earth.jpg`,
+        `${import.meta.env.BASE_URL}maps/atlas-earth.png`,
         { signal: this.abort.signal },
       );
       if (!response.ok) throw new Error('Imagen no disponible.');
-      const bitmap = await createImageBitmap(await response.blob(), {
-        imageOrientation: 'none',
-        premultiplyAlpha: 'none',
-      });
-      if (this.destroyed) {
-        bitmap.close();
-        return;
-      }
-      this.bitmap = bitmap;
-      if (!this.contextLost) this.uploadTexture();
-      this.imageLoaded = true;
-      this.invalidate();
+      const blob = await response.blob();
+      if (this.abort.signal.aborted) return;
+      this.textureBlob = blob;
+      await this.uploadTexture(blob);
     } catch {
-      if (!this.destroyed)
+      if (!this.abort.signal.aborted)
         this.report(
           'error',
           'No se pudo cargar la imagen de la Tierra. Puedes volver a intentarlo.',
         );
-    }
-  }
-
-  private async loadBorders(): Promise<void> {
-    if (this.borderLoading || this.borderPositions || this.destroyed) return;
-    this.borderLoading = true;
-    try {
-      const response = await fetch(
-        `${import.meta.env.BASE_URL}maps/borders.bin`,
-        { signal: this.abort.signal },
-      );
-      if (!response.ok) throw new Error('Fronteras no disponibles.');
-      const borders = decodeBorders(await response.arrayBuffer());
-      if (this.destroyed) return;
-      this.borderPositions = borders.positions;
-      this.countryCount = borders.countryCount;
-      if (!this.contextLost && this.graphics) {
-        const gl = this.gl!;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.graphics.borderBuffer);
-        gl.bufferData(gl.ARRAY_BUFFER, borders.positions, gl.STATIC_DRAW);
-      }
-      if (!this.contextLost && this.ready) this.report('ready');
-      this.invalidate();
-    } catch {
-      if (!this.destroyed && !this.contextLost && this.ready)
-        this.report(
-          'ready',
-          'Las fronteras no están disponibles. Puedes seguir explorando la Tierra.',
-        );
-    } finally {
-      this.borderLoading = false;
     }
   }
 
@@ -408,33 +354,33 @@ export default class GlobeRenderer implements GlobeHandle {
     const pointerMove = (event: PointerEvent): void => {
       const previous = this.pointers.get(event.pointerId);
       if (!previous) return;
-      const before = [...this.pointers.values()];
-      this.pointers.set(event.pointerId, {
-        x: event.clientX,
-        y: event.clientY,
-        button: previous.button,
-      });
       const dx = event.clientX - previous.x;
       const dy = event.clientY - previous.y;
       if (this.pointers.size >= 2) {
-        const after = [...this.pointers.values()];
-        const a = before[0]!;
-        const b = before[1]!;
-        const c = after[0]!;
-        const d = after[1]!;
-        const previousDistance = Math.hypot(a.x - b.x, a.y - b.y);
-        const nextDistance = Math.hypot(c.x - d.x, c.y - d.y);
+        // Use the moved pointer and its partner without cloning the pointer map.
+        let partner: Pointer | undefined;
+        for (const pointer of this.pointers.values()) {
+          if (pointer !== previous) {
+            partner = pointer;
+            break;
+          }
+        }
+        if (!partner) return;
+        const previousDistance = Math.hypot(
+          previous.x - partner.x,
+          previous.y - partner.y,
+        );
+        const nextDistance = Math.hypot(
+          event.clientX - partner.x,
+          event.clientY - partner.y,
+        );
         if (nextDistance > 1 && previousDistance > 1)
           this.orbit.range = clamp(
             (this.orbit.range * previousDistance) / nextDistance,
             MIN_RANGE,
             MAX_RANGE,
           );
-        this.orbit.tilt = clamp(
-          this.orbit.tilt + ((c.y + d.y - a.y - b.y) / 2) * 0.006,
-          0,
-          MAX_TILT,
-        );
+        this.orbit.tilt = clamp(this.orbit.tilt + dy * 0.003, 0, MAX_TILT);
       } else if (previous.button === 1 || event.shiftKey) {
         this.orbit.tilt = clamp(this.orbit.tilt + dy * 0.006, 0, MAX_TILT);
       } else {
@@ -448,6 +394,8 @@ export default class GlobeRenderer implements GlobeHandle {
           85,
         );
       }
+      previous.x = event.clientX;
+      previous.y = event.clientY;
       this.changed();
     };
     const pointerUp = (event: PointerEvent): void => {
@@ -492,6 +440,7 @@ export default class GlobeRenderer implements GlobeHandle {
       cancelAnimationFrame(this.raf);
       this.raf = 0;
       this.ready = false;
+      this.imageLoaded = false;
       this.report(
         'error',
         'Se ha interrumpido el renderizado. Puedes volver a intentarlo.',
@@ -503,7 +452,16 @@ export default class GlobeRenderer implements GlobeHandle {
         this.contextLost = false;
         this.createGraphics();
         this.resize();
-        this.invalidate();
+        if (this.textureBlob) {
+          const graphics = this.graphics;
+          void this.uploadTexture(this.textureBlob).catch(() => {
+            if (!this.destroyed && this.graphics === graphics)
+              this.report(
+                'error',
+                'No se pudo recuperar la textura. Puedes volver a intentarlo.',
+              );
+          });
+        }
       } catch {
         this.releaseGraphics();
         this.report(
@@ -549,12 +507,20 @@ export default class GlobeRenderer implements GlobeHandle {
       1.5,
       Math.sqrt(MAX_PIXELS / (this.cssWidth * this.cssHeight)),
     );
-    const width = Math.max(1, Math.round(this.cssWidth * this.pixelRatio));
-    const height = Math.max(1, Math.round(this.cssHeight * this.pixelRatio));
+    const width = Math.max(1, Math.floor(this.cssWidth * this.pixelRatio));
+    const height = Math.max(1, Math.floor(this.cssHeight * this.pixelRatio));
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
       this.canvas.height = height;
     }
+    if (!this.contextLost) this.gl?.viewport(0, 0, width, height);
+    // With no depth attachment, a fixed clip range works at every zoom.
+    perspective(
+      this.projection,
+      this.cssWidth / this.cssHeight,
+      0.000001,
+      MAX_RANGE + 4,
+    );
     if (!this.cameraTouched)
       this.orbit.range = homeRange(this.cssWidth / this.cssHeight);
     this.describe();
@@ -574,7 +540,10 @@ export default class GlobeRenderer implements GlobeHandle {
   }
 
   private describe(): void {
-    const position = describePosition(cameraPose(this.orbit).eye);
+    const position = describePosition(
+      cameraPose(this.orbit, this.pose).eye,
+      this.position,
+    );
     this.host.dataset.cameraHeight = position.heightM.toFixed(2);
     this.host.dataset.cameraLongitude = position.longitude.toFixed(5);
     this.host.dataset.cameraLatitude = position.latitude.toFixed(5);
@@ -582,14 +551,21 @@ export default class GlobeRenderer implements GlobeHandle {
   }
 
   private invalidate(): void {
+    this.dirty = true;
+    this.scheduleFrame();
+  }
+
+  private scheduleFrame(): void {
     if (
       !this.raf &&
       !this.destroyed &&
       !this.contextLost &&
+      this.imageLoaded &&
+      this.graphics &&
       this.intersecting &&
       !document.hidden
     )
-      this.raf = requestAnimationFrame((time) => this.frame(time));
+      this.raf = requestAnimationFrame(this.onAnimationFrame);
   }
 
   private frame(time: number): void {
@@ -603,6 +579,16 @@ export default class GlobeRenderer implements GlobeHandle {
       return;
     const rotating =
       this.ready && this.options.autoRotate && !this.options.reducedMotion;
+    // Auto rotation is slow. Keep interactive frames immediate and limit only
+    // automatic frames, allowing a small tolerance for 60/120 Hz RAF jitter.
+    if (
+      !this.dirty &&
+      (!rotating || time - this.lastFrame < AUTO_FRAME_INTERVAL - 2)
+    ) {
+      if (rotating) this.scheduleFrame();
+      return;
+    }
+    this.dirty = false;
     if (rotating && this.lastFrame)
       this.orbit.longitude = wrapLongitude(
         this.orbit.longitude +
@@ -611,12 +597,14 @@ export default class GlobeRenderer implements GlobeHandle {
     this.lastFrame = time;
     try {
       this.draw();
-      if (this.imageLoaded && !this.firstTextureDraw) {
-        this.firstTextureDraw = true;
-        this.ready = true;
-        this.report('ready');
-        if (this.options.countriesVisible) void this.loadBorders();
-      } else if (this.imageLoaded && !this.ready) {
+      if (rotating) {
+        // A rotation about the polar axis only changes the camera's longitude.
+        const [x, , z] = this.pose.eye;
+        this.host.dataset.cameraLongitude = degrees(Math.atan2(-z, x)).toFixed(
+          5,
+        );
+      }
+      if (this.imageLoaded && !this.ready) {
         this.ready = true;
         this.report('ready');
       }
@@ -629,51 +617,35 @@ export default class GlobeRenderer implements GlobeHandle {
       return;
     }
     if (this.ready && this.options.autoRotate && !this.options.reducedMotion)
-      this.invalidate();
+      this.scheduleFrame();
   }
 
   private draw(): void {
     const gl = this.gl;
     const gpu = this.graphics;
     if (!gl || !gpu || gl.isContextLost()) return;
-    const pose = cameraPose(this.orbit);
+    const pose = cameraPose(this.orbit, this.pose);
     lookAt(this.view, pose.eye, pose.target, pose.up);
-    perspective(
-      this.projection,
-      this.cssWidth / this.cssHeight,
-      Math.max(0.000001, this.orbit.range * 0.001),
-      Math.hypot(...pose.eye) + 3,
-    );
     multiply(this.mvp, this.projection, this.view);
-    gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-    gl.clearColor(5 / 255, 10 / 255, 16 / 255, 1);
-    gl.depthMask(true);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.disable(gl.DEPTH_TEST);
     gl.disable(gl.CULL_FACE);
     gl.useProgram(gpu.stars.handle);
     gl.uniformMatrix4fv(
-      gpu.stars.uniforms.get('uView') ?? null,
+      gpu.stars.uniforms.get('uMvp') ?? null,
       false,
-      this.view,
-    );
-    gl.uniformMatrix4fv(
-      gpu.stars.uniforms.get('uProjection') ?? null,
-      false,
-      this.projection,
+      this.mvp,
     );
     gl.uniform1f(
       gpu.stars.uniforms.get('uPixelRatio') ?? null,
       this.pixelRatio,
     );
     gl.bindVertexArray(gpu.starVao);
-    gl.drawArrays(gl.POINTS, 0, 512);
-    gl.enable(gl.DEPTH_TEST);
-    gl.depthFunc(gl.LEQUAL);
+    gl.drawArrays(gl.POINTS, 0, STAR_COUNT);
+    // The convex, opaque ellipsoid covers the stars with its front faces.
+    // This scene does not need a depth attachment.
+    gl.disable(gl.BLEND);
     gl.enable(gl.CULL_FACE);
-    gl.cullFace(gl.BACK);
     gl.useProgram(gpu.earth.handle);
     gl.uniformMatrix4fv(
       gpu.earth.uniforms.get('uMvp') ?? null,
@@ -686,45 +658,15 @@ export default class GlobeRenderer implements GlobeHandle {
       gpu.earth.uniforms.get('uLighting') ?? null,
       Number(this.options.lighting),
     );
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, gpu.texture);
-    gl.bindVertexArray(gpu.sphereVao);
-    gl.drawElements(gl.TRIANGLES, gpu.indexCount, gl.UNSIGNED_SHORT, 0);
-    this.drawCalls = 2;
-    gl.depthMask(false);
-    if (this.options.countriesVisible && this.borderPositions) {
-      gl.useProgram(gpu.borders.handle);
-      gl.uniformMatrix4fv(
-        gpu.borders.uniforms.get('uMvp') ?? null,
-        false,
-        this.mvp,
-      );
-      gl.bindVertexArray(gpu.borderVao);
-      gl.drawArrays(gl.LINES, 0, this.borderPositions.length / 3);
-      this.drawCalls += 1;
-    }
-    gl.cullFace(gl.FRONT);
-    gl.useProgram(gpu.atmosphere.handle);
-    gl.uniformMatrix4fv(
-      gpu.atmosphere.uniforms.get('uMvp') ?? null,
-      false,
-      this.mvp,
-    );
-    gl.uniform3fv(gpu.atmosphere.uniforms.get('uEye') ?? null, pose.eye);
-    gl.uniform3fv(gpu.atmosphere.uniforms.get('uSun') ?? null, this.sun);
-    gl.uniform1f(
-      gpu.atmosphere.uniforms.get('uLighting') ?? null,
-      Number(this.options.lighting),
+    gl.uniform1i(
+      gpu.earth.uniforms.get('uGrid') ?? null,
+      Number(this.options.gridVisible),
     );
     gl.bindVertexArray(gpu.sphereVao);
     gl.drawElements(gl.TRIANGLES, gpu.indexCount, gl.UNSIGNED_SHORT, 0);
-    this.drawCalls += 1;
-    gl.depthMask(true);
-    gl.bindVertexArray(null);
+    if (this.frames === 0) this.host.dataset.drawCalls = '2';
     this.frames += 1;
     this.host.dataset.frameCount = String(this.frames);
-    this.host.dataset.drawCalls = String(this.drawCalls);
-    this.describe();
   }
 
   home(): void {
@@ -769,9 +711,8 @@ export default class GlobeRenderer implements GlobeHandle {
     this.lastFrame = 0;
     this.invalidate();
   }
-  setCountriesVisible(value: boolean): void {
-    this.options.countriesVisible = value;
-    if (value && this.imageLoaded) void this.loadBorders();
+  setGridVisible(value: boolean): void {
+    this.options.gridVisible = value;
     this.invalidate();
   }
   setLighting(value: boolean): void {
@@ -784,19 +725,6 @@ export default class GlobeRenderer implements GlobeHandle {
     this.invalidate();
   }
 
-  getSnapshot(): GlobeSnapshot {
-    return {
-      ...describePosition(cameraPose(this.orbit).eye),
-      pitch: -90 + degrees(this.orbit.tilt),
-      frameCount: this.frames,
-      drawCalls: this.drawCalls,
-      canvasWidth: this.canvas.width,
-      canvasHeight: this.canvas.height,
-      countryCount: this.countryCount,
-      ready: this.ready,
-    };
-  }
-
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -805,9 +733,7 @@ export default class GlobeRenderer implements GlobeHandle {
     for (const cleanup of this.cleanup.splice(0)) cleanup();
     this.pointers.clear();
     this.releaseGraphics();
-    this.bitmap?.close();
-    this.bitmap = null;
-    this.borderPositions = null;
+    this.textureBlob = null;
     this.gl?.getExtension('WEBGL_lose_context')?.loseContext();
     this.canvas.remove();
   }

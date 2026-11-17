@@ -25,23 +25,6 @@ export function surfacePoint(
   ];
 }
 
-export function normalize(v: Vec3): Vec3 {
-  const length = Math.hypot(...v);
-  return length > 0 ? [v[0] / length, v[1] / length, v[2] / length] : [0, 0, 0];
-}
-
-function cross(a: Vec3, b: Vec3): Vec3 {
-  return [
-    a[1] * b[2] - a[2] * b[1],
-    a[2] * b[0] - a[0] * b[2],
-    a[0] * b[1] - a[1] * b[0],
-  ];
-}
-
-function dot(a: Vec3, b: Vec3): number {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-
 /** Column-major view matrix. The target is a genuine point on the ellipsoid. */
 export function lookAt(
   out: Float32Array,
@@ -49,31 +32,51 @@ export function lookAt(
   target: Vec3,
   up: Vec3,
 ): void {
-  const z = normalize([
-    eye[0] - target[0],
-    eye[1] - target[1],
-    eye[2] - target[2],
-  ]);
-  const x = normalize(cross(up, z));
-  const y = cross(z, x);
-  out.set([
-    x[0],
-    y[0],
-    z[0],
-    0,
-    x[1],
-    y[1],
-    z[1],
-    0,
-    x[2],
-    y[2],
-    z[2],
-    0,
-    -dot(x, eye),
-    -dot(y, eye),
-    -dot(z, eye),
-    1,
-  ]);
+  let z0 = eye[0] - target[0];
+  let z1 = eye[1] - target[1];
+  let z2 = eye[2] - target[2];
+  const zLength = Math.hypot(z0, z1, z2);
+  if (zLength > 0) {
+    z0 /= zLength;
+    z1 /= zLength;
+    z2 /= zLength;
+  } else {
+    z0 = 0;
+    z1 = 0;
+    z2 = 0;
+  }
+  let x0 = up[1] * z2 - up[2] * z1;
+  let x1 = up[2] * z0 - up[0] * z2;
+  let x2 = up[0] * z1 - up[1] * z0;
+  const xLength = Math.hypot(x0, x1, x2);
+  if (xLength > 0) {
+    x0 /= xLength;
+    x1 /= xLength;
+    x2 /= xLength;
+  } else {
+    x0 = 0;
+    x1 = 0;
+    x2 = 0;
+  }
+  const y0 = z1 * x2 - z2 * x1;
+  const y1 = z2 * x0 - z0 * x2;
+  const y2 = z0 * x1 - z1 * x0;
+  out[0] = x0;
+  out[1] = y0;
+  out[2] = z0;
+  out[3] = 0;
+  out[4] = x1;
+  out[5] = y1;
+  out[6] = z1;
+  out[7] = 0;
+  out[8] = x2;
+  out[9] = y2;
+  out[10] = z2;
+  out[11] = 0;
+  out[12] = -(x0 * eye[0] + x1 * eye[1] + x2 * eye[2]);
+  out[13] = -(y0 * eye[0] + y1 * eye[1] + y2 * eye[2]);
+  out[14] = -(z0 * eye[0] + z1 * eye[1] + z2 * eye[2]);
+  out[15] = 1;
 }
 
 export function perspective(
@@ -113,62 +116,77 @@ export interface Orbit {
   tilt: number;
 }
 
-export function cameraPose(orbit: Orbit): {
+export interface CameraPose {
   eye: Vec3;
   target: Vec3;
   up: Vec3;
-} {
-  const lon = radians(orbit.longitude);
-  const lat = radians(orbit.latitude);
-  const target = surfacePoint(orbit.longitude, orbit.latitude);
-  const normal: Vec3 = [
-    Math.cos(lat) * Math.cos(lon),
-    Math.sin(lat),
-    -Math.cos(lat) * Math.sin(lon),
-  ];
-  const north: Vec3 = [
-    -Math.sin(lat) * Math.cos(lon),
-    Math.cos(lat),
-    Math.sin(lat) * Math.sin(lon),
-  ];
-  const cosine = Math.cos(orbit.tilt);
-  const sine = Math.sin(orbit.tilt);
-  return {
-    target,
-    eye: [
-      target[0] + orbit.range * (normal[0] * cosine + north[0] * sine),
-      target[1] + orbit.range * (normal[1] * cosine + north[1] * sine),
-      target[2] + orbit.range * (normal[2] * cosine + north[2] * sine),
-    ],
-    up: [
-      north[0] * cosine - normal[0] * sine,
-      north[1] * cosine - normal[1] * sine,
-      north[2] * cosine - normal[2] * sine,
-    ],
-  };
 }
 
-export function describePosition(eye: Vec3): {
+/** Reuse the output and its three vectors to avoid allocations in the render loop. */
+export function cameraPose(
+  orbit: Orbit,
+  out: CameraPose = { eye: [0, 0, 0], target: [0, 0, 0], up: [0, 0, 0] },
+): CameraPose {
+  const lon = radians(orbit.longitude);
+  const lat = radians(orbit.latitude);
+  const sinLat = Math.sin(lat);
+  const cosLat = Math.cos(lat);
+  const sinLon = Math.sin(lon);
+  const cosLon = Math.cos(lon);
+  const radius = 1 / Math.sqrt(1 - ECCENTRICITY_SQUARED * sinLat * sinLat);
+  const targetX = radius * cosLat * cosLon;
+  const targetY = radius * (1 - ECCENTRICITY_SQUARED) * sinLat;
+  const targetZ = -radius * cosLat * sinLon;
+  const normalX = cosLat * cosLon;
+  const normalY = sinLat;
+  const normalZ = -cosLat * sinLon;
+  const northX = -sinLat * cosLon;
+  const northY = cosLat;
+  const northZ = sinLat * sinLon;
+  const cosine = Math.cos(orbit.tilt);
+  const sine = Math.sin(orbit.tilt);
+  out.target[0] = targetX;
+  out.target[1] = targetY;
+  out.target[2] = targetZ;
+  out.eye[0] = targetX + orbit.range * (normalX * cosine + northX * sine);
+  out.eye[1] = targetY + orbit.range * (normalY * cosine + northY * sine);
+  out.eye[2] = targetZ + orbit.range * (normalZ * cosine + northZ * sine);
+  out.up[0] = northX * cosine - normalX * sine;
+  out.up[1] = northY * cosine - normalY * sine;
+  out.up[2] = northZ * cosine - normalZ * sine;
+  return out;
+}
+
+export interface PositionDescription {
   longitude: number;
   latitude: number;
   heightM: number;
-} {
+}
+
+/** Without an output argument, retain the original independently allocated result. */
+export function describePosition(
+  eye: Vec3,
+  out: PositionDescription = { longitude: 0, latitude: 0, heightM: 0 },
+): PositionDescription {
   const p = Math.hypot(eye[0], eye[2]);
   const theta = Math.atan2(eye[1], p * POLAR_RATIO);
   const ePrime2 = ECCENTRICITY_SQUARED / (POLAR_RATIO * POLAR_RATIO);
+  const sinTheta = Math.sin(theta);
+  const cosTheta = Math.cos(theta);
   const lat = Math.atan2(
-    eye[1] + ePrime2 * POLAR_RATIO * Math.sin(theta) ** 3,
-    p - ECCENTRICITY_SQUARED * Math.cos(theta) ** 3,
+    eye[1] + ePrime2 * POLAR_RATIO * sinTheta * sinTheta * sinTheta,
+    p - ECCENTRICITY_SQUARED * cosTheta * cosTheta * cosTheta,
   );
-  const n = 1 / Math.sqrt(1 - ECCENTRICITY_SQUARED * Math.sin(lat) ** 2);
-  return {
-    longitude: degrees(Math.atan2(-eye[2], eye[0])),
-    latitude: degrees(lat),
-    heightM:
-      (Math.abs(Math.cos(lat)) > 1e-8
-        ? p / Math.cos(lat) - n
-        : Math.abs(eye[1]) - POLAR_RATIO) * RADIUS_M,
-  };
+  const sinLat = Math.sin(lat);
+  const cosLat = Math.cos(lat);
+  const n = 1 / Math.sqrt(1 - ECCENTRICITY_SQUARED * sinLat * sinLat);
+  out.longitude = degrees(Math.atan2(-eye[2], eye[0]));
+  out.latitude = degrees(lat);
+  out.heightM =
+    (Math.abs(cosLat) > 1e-8
+      ? p / cosLat - n
+      : Math.abs(eye[1]) - POLAR_RATIO) * RADIUS_M;
+  return out;
 }
 
 export function homeRange(aspect: number): number {

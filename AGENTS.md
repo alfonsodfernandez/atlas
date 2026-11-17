@@ -2,16 +2,13 @@
 
 ## Alcance y decisión vigente
 
-Lee `PLAN.md` antes de modificar el proyecto. El hito actual es la reescritura de
-la Fase 1 en WebGL nativo, rama `fase-1-webgl-nativo`. El usuario ha pedido que la
-Tierra y la página se programen a mano y en bajo nivel para resolver la lentitud.
-Esta instrucción sustituye la elección inicial de Cesium y frameworks de UI.
-Mantén el motor propio en TypeScript/GLSL y la interfaz con DOM y CSS nativos.
+Lee `PLAN.md` antes de modificar el proyecto. El visor está en la Fase 1.
+El usuario eligió una Tierra original de ATLAS con continentes dibujados a mano
+y geografía aproximada, sin fronteras oficiales. Mantén la generación visual
+en código propio, el renderizador en WebGL 2 y la interfaz en TypeScript y CSS.
 
-Las Fases 0 y 1 anteriores están integradas en `main`; sus pruebas y capturas
-históricas no verifican automáticamente esta reescritura. No implementes parsers
-sin investigar antes los formatos actuales ni presentes datos ficticios como el
-historial de Alfonso.
+Investiga los formatos actuales antes de implementar parsers de Timeline y
+distingue los datos sintéticos de un historial personal.
 
 ## Arranque y comandos
 
@@ -30,8 +27,8 @@ historial de Alfonso.
 - `npm run check:privacy`: ficheros versionados y nuevos no ignorados;
   `npm run check:privacy -- --staged`: blobs exactos del índice.
 - `ATLAS_BASE_PATH=/ npm run build`: build para la raíz de un dominio.
-- `node scripts/prepare-maps.mjs` y `node scripts/prepare-borders.mjs`:
-  regeneración de la cartografía pública con hashes de procedencia.
+- `node scripts/prepare-earth.mjs [--check]`: genera la textura original o
+  comprueba que coincide con la versión guardada.
 
 El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 
@@ -44,7 +41,7 @@ El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 - `packages/geo/`: futura geocodificación offline.
 - `scripts/`: calidad, generación reproducible y mediciones.
 - `public/data/`: futura salida agregada y saneada.
-- `public/maps/`: NASA, Natural Earth y fronteras de visualización en binario.
+- `public/maps/`: PNG indexado generado por ATLAS y documentación del dibujo.
 - UI y documentación en español; conserva los textos centralizados para i18n.
 - Usa eventos con limpieza explícita y conserva el foco y el teclado en diálogos.
 - Valida entradas de buffers y límites antes de crear vistas o reservar memoria.
@@ -52,9 +49,8 @@ El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 - Dibuja al cambiar la escena. La rotación puede programar frames mientras está
   activa; suspéndelos si el documento o el visor dejan de estar visibles.
 - Respeta movimiento reducido y los límites de resolución del renderizador.
-- Mantén los presupuestos verificados: 64 KiB de JS de build, 24 KiB con gzip y
-  700 KiB de estimación inicial JS/CSS con gzip más mapas. El build medido ocupa
-  41.046 bytes de JS bruto y 14.920 con gzip; registra las nuevas medidas si cambia.
+- Mantén los presupuestos verificados de 48 KiB de JS, 20 KiB con gzip y
+  64 KiB de estimación inicial para JS/CSS con gzip más textura.
 - Los informes de arranque comparan una muestra fría por versión con SwiftShader.
   No los presentes como FPS ni como tiempos garantizados en hardware físico.
 - Vitest comprueba matemáticas, geometría, decodificación y privacidad.
@@ -95,15 +91,14 @@ resultado real del workflow y la web antes de afirmar que se ha publicado. Los
 ## Trampas conocidas
 
 - La Fase 1 no importa Timeline ni representa visitas personales.
-- Conserva las atribuciones NASA/Natural Earth visibles, también a 320 px.
-- `borders.bin` es cartografía para dibujar; la geocodificación futura necesita
-  geometría e índices apropiados para fronteras y mar.
-- Las 242 entidades incluyen territorios y áreas disputadas, no países visitados.
-- La textura NASA es una composición histórica; no es una imagen en directo.
-- La carga básica utiliza recursos locales servidos con la página.
-- Los modos Ion/Bing/Google y las variables de mapas de la versión Cesium ya no
-  forman parte de esta implementación. No los reactives sin revisar su coste y
-  el objetivo explícito de un motor propio ligero.
+- El globo es una ilustración geográfica aproximada. La futura geocodificación
+  de viajes requerirá datos adecuados y no debe usar su máscara de tierra.
+- La textura y la cuadrícula son locales. Conserva el crédito de ATLAS visible.
+- El shader terrestre integra cuadrícula e iluminación en una pasada opaca y
+  las estrellas se dibujan en una sola pasada aparte.
+- El elipsoide convexo se dibuja sin búfer de profundidad. Si se añaden
+  objetos que deban ocluirse entre sí, revisa ese supuesto. La textura se sube
+  en RGB565 y el PNG comprimido se conserva para recuperar WebGL.
 - Los eventos de pérdida/restauración de WebGL y el reintento deben liberar y
   reconstruir recursos; también aborta descargas pendientes al destruir el visor.
 - Los metadatos de cámara deben leer el estado real al ejecutar un comando,

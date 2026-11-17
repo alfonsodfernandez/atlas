@@ -1,87 +1,64 @@
-# Medidas de rendimiento de ATLAS
+# Rendimiento de ATLAS
 
-Comparación entre el build de `9ee8fbf` con Cesium/React/Motion y la reescritura
-nativa de la rama `fase-1-webgl-nativo`, medida el 16 de noviembre de 2026.
-Los JSON conservan los nombres de archivos compilados, las cantidades exactas y
-la fecha del ensayo. El informe posterior identifica su contenido mediante los
-hashes de los nombres de assets, antes de asignar el commit final.
+## Tierra original
 
-## Tamaño de descarga
+La comparación del 17 de noviembre de 2026 toma como referencia `ffebdb5`,
+la primera versión WebGL nativa publicada. Compara el mismo visor con los
+contornos originales, el PNG indexado y el motor simplificado.
 
-Los pesos de JavaScript suman los archivos `.js` emitidos en `dist/assets/`.
-Gzip se calcula con `node:zlib`, sin mezclar bytes comprimidos y sin comprimir.
+| Medida                                | WebGL anterior | Tierra original |
+| ------------------------------------- | -------------: | --------------: |
+| Descarga inicial estimada, bytes      |        590.694 |          48.006 |
+| Subrecursos decodificados, bytes      |        627.383 |          81.262 |
+| Subrecursos solicitados               |              5 |               3 |
+| JavaScript de build, bytes            |         41.046 |          36.014 |
+| JavaScript de build con gzip, bytes   |         14.920 |          13.257 |
+| Cartografía descargada, bytes         |        571.763 |          30.768 |
+| Llamadas de dibujo por fotograma      |              4 |               2 |
+| Triángulos de la superficie terrestre |          9.216 |           4.096 |
+| Mediana hasta el primer dibujo, ms    |            232 |             130 |
 
-| Medida                            |  Anterior |  Nativo |
-| --------------------------------- | --------: | ------: |
-| JS de build sin comprimir, bytes  | 4.615.573 |  41.046 |
-| JS de build con gzip, bytes       | 1.258.993 |  14.920 |
-| CSS nativo con gzip, bytes        |         — |   4.011 |
-| Imagen NASA, bytes                |   356.467 | 356.467 |
-| Fronteras binarias nativas, bytes |         — | 215.296 |
-| Estimación inicial nativa, bytes  |         — | 590.694 |
+La descarga inicial estimada se reduce un **92 %**. La estimación suma
+JavaScript y CSS con gzip más el tamaño de los mapas y excluye HTML y cabeceras.
+El tráfico real depende de la compresión y la caché del servidor. El límite de
+compilación es de 64 KiB para esa estimación, 48 KiB para JavaScript bruto y
+20 KiB para JavaScript con gzip. [Informe de compilación](original-bundle.json).
 
-La reducción de JS bruto es del **99,1 %**. La estimación inicial suma JS y CSS
-con gzip y los dos archivos de mapas en su tamaño original. No cuenta HTML ni
-cabeceras; el tráfico real depende de la compresión y caché del servidor. El
-build original publicaba unos 14 MB de archivos, incluidos assets de Cesium;
-esa cantidad es distinta de la descarga inicial observada.
+El navegador se inició desde cero para cada una de tres muestras por versión,
+alternadas en el mismo entorno. Se sirvieron los builds estáticos en local y se
+usó Chromium con SwiftShader, una ventana de 1280 × 850 a densidad 1 y movimiento
+reducido. Los tiempos fueron 494, 232 y 216 ms para la versión anterior y 182,
+130 y 99 ms para la Tierra original. El marcador registra cuándo la aplicación
+envía el primer dibujo con la Tierra cargada a WebGL. `PerformanceResourceTiming` excluye la página
+HTML del recuento de subrecursos. Los resultados corresponden a estas muestras
+locales con GPU emulada. [Todas las muestras](original-runtime.json).
 
-Los presupuestos que valida `npm run check:bundle` son:
-
-- JavaScript bruto: 65.536 bytes (64 KiB).
-- JavaScript con gzip: 24.576 bytes (24 KiB).
-- Estimación inicial: 716.800 bytes (700 KiB).
-
-Fuentes: [antes](before-bundle.json) y [después](after-bundle.json).
-
-## Arranque
-
-Se tomó **una muestra fría por versión**, en el mismo entorno y con el mismo
-script. Chromium usa SwiftShader, viewport de 1280 × 850, densidad de píxeles 1,
-movimiento reducido y recursos servidos localmente. No se impuso un perfil de
-red o CPU ni se utilizó un teléfono físico.
-
-| Medida observada                    |  Anterior |  Nativo |
-| ----------------------------------- | --------: | ------: |
-| Marcador de globo preparado, ms     |     3.110 |     247 |
-| Marcador de fronteras, ms           |     3.406 |     292 |
-| Solicitudes de subrecursos          |        24 |       5 |
-| Subrecursos decodificados, bytes    | 8.312.969 | 627.383 |
-| JS decodificado observado, bytes    | 5.636.762 |  41.046 |
-| Tareas largas observadas            |         6 |       1 |
-| Duración total de tareas largas, ms |       735 |     139 |
-
-Los marcadores se leen de los atributos de estado de la aplicación. Miden su
-inicialización y disponibilidad declarada, no el fin de toda la rasterización de
-la GPU. `PerformanceResourceTiming` cuenta subrecursos y excluye la navegación
-HTML; los bytes decodificados son distintos del tráfico comprimido. El JS
-observado anterior incluye archivos auxiliares solicitados por Cesium, por eso
-supera los `.js` de `dist/assets/` del cuadro de build.
-
-Estas muestras permiten comparar el arranque en estas condiciones. No son una
-medición de FPS, una distribución estadística ni una garantía de los mismos
-tiempos en otros dispositivos. Las medidas en hardware objetivo se mantienen
-como trabajo de la Fase 7.
-
-Fuentes: [antes](before-runtime.json) y [después](after-runtime.json).
-
-## Reproducir la medición nativa
+## Reproducir la medición
 
 ```sh
 npm ci
+npx playwright install chromium
 npm run build
-npm run check:bundle -- --report docs/performance/after-bundle.json
+npm run check:bundle -- --report /tmp/atlas-bundle.json
 npm run preview -- --port 4173 --strictPort
 ```
 
-Con ese servidor abierto, en otra terminal:
+Con el servidor abierto, ejecuta este comando en otra terminal.
 
 ```sh
-npm run measure:runtime -- http://127.0.0.1:4173/atlas/ docs/performance/after-runtime.json
+npm run measure:runtime -- http://127.0.0.1:4173/atlas/ /tmp/atlas-runtime.json
 ```
 
-Ejecuta una versión cada vez para evitar competencia entre procesos de GPU y
-conserva las mismas condiciones al comparar. La revisión antigua se puede abrir
-en un checkout separado de `9ee8fbf`; el script de medición admite sus mismos
-marcadores. Guarda el SHA de origen al publicar una comparación nueva y actualiza
-las tablas si cambian los informes.
+Para comparar, compila también `ffebdb5` en un checkout separado y usa el
+mismo script de medición con los dos builds. Alterna las versiones y ejecuta
+un solo navegador a la vez para reducir la competencia por CPU y GPU.
+
+## Migración de Cesium a WebGL nativo
+
+El 16 de noviembre de 2026 se comparó el build de Cesium, React y Motion
+(`9ee8fbf`) con la primera versión WebGL nativa. El JavaScript de build pasó
+de 4.615.573 a 41.046 bytes. En una muestra fría por versión, el arranque
+pasó de 3.110 a 247 ms y los subrecursos decodificados de 8.312.969 a 627.383
+bytes. Las dos muestras se tomaron con Chromium y SwiftShader en local.
+[Build de Cesium](before-bundle.json), [build WebGL](after-bundle.json),
+[arranque de Cesium](before-runtime.json) y [arranque WebGL](after-runtime.json).

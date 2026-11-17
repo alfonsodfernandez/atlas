@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-17",
+  "viewport": {
+    "width": 1280,
+    "height": 850,
+    "deviceScaleFactor": 1
+  },
+  "rendering": "Chromium + SwiftShader, cold browser, reduced motion, local static server",
+  "previous": {
+    "revision": "ffebdb587edd423ce964c5bff484cd6667b88070",
+    "javascriptDecodedBytes": 41046,
+    "resourceDecodedBytes": 627383,
+    "requestCount": 5,
+    "medianGlobeReadyMs": 232,
+    "samples": [
+      {
+        "measuredAt": "2026-11-17T21:26:15.857Z",
+        "globeReadyMs": 494,
+        "countriesReadyMs": 549,
+        "longTaskCount": 3,
+        "longTaskDurationMs": 348
+      },
+      {
+        "measuredAt": "2026-11-17T21:26:18.271Z",
+        "globeReadyMs": 232,
+        "countriesReadyMs": 290,
+        "longTaskCount": 2,
+        "longTaskDurationMs": 186
+      },
+      {
+        "measuredAt": "2026-11-17T21:26:20.518Z",
+        "globeReadyMs": 216,
+        "countriesReadyMs": 260,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 131
+      }
+    ]
+  },
+  "original": {
+    "javascript": "index-BVyFirlo.js",
+    "textureSha256": "628097ba51fbe768e31136b53e0ec024533866251e34d522194f8c2b5d803588",
+    "javascriptDecodedBytes": 36014,
+    "resourceDecodedBytes": 81262,
+    "requestCount": 3,
+    "medianGlobeReadyMs": 130,
+    "samples": [
+      {
+        "measuredAt": "2026-11-17T21:26:17.241Z",
+        "globeReadyMs": 182,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 100
+      },
+      {
+        "measuredAt": "2026-11-17T21:26:19.517Z",
+        "globeReadyMs": 130,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      },
+      {
+        "measuredAt": "2026-11-17T21:26:21.710Z",
+        "globeReadyMs": 99,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      }
+    ]
+  }
+}

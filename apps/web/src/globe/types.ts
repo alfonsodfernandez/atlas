@@ -10,28 +10,13 @@ export interface GlobeHandle {
 export interface GlobeStatus {
   state: 'loading' | 'ready' | 'error';
   message?: string;
-  /** Cartographic features, including territories; never a visited-country count. */
-  countryCount: number;
 }
 
 export interface GlobeProps {
   autoRotate: boolean;
-  countriesVisible: boolean;
+  gridVisible: boolean;
   lighting: boolean;
   reducedMotion: boolean;
   onInteraction: () => void;
   onStatus: (status: GlobeStatus) => void;
-}
-
-export interface GlobeSnapshot {
-  longitude: number;
-  latitude: number;
-  heightM: number;
-  pitch: number;
-  frameCount: number;
-  drawCalls: number;
-  canvasWidth: number;
-  canvasHeight: number;
-  countryCount: number;
-  ready: boolean;
 }
