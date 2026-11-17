@@ -4,17 +4,15 @@ Un atlas personal para recorrer, en un globo terráqueo 3D, los lugares que has
 visitado. El proyecto se construye por fases a partir de exportaciones de Google
 Maps Timeline, con el tratamiento de datos en tu propio ordenador.
 
-**Hito actual: reescritura del globo en WebGL nativo.** A petición del usuario,
-la Tierra, sus shaders, cámara y controles se programan a mano. La interfaz usa
-TypeScript y CSS, con acceso directo al DOM. Esta versión sustituye el motor y
-los frameworks de la primera implementación para reducir la descarga y el
-trabajo del navegador. La importación de Timeline llegará en la Fase 2; todavía
-no hay visitas ni estadísticas personales.
+ATLAS dibuja su propia Tierra con WebGL 2, TypeScript y CSS. Los continentes
+se trazan a mano y la textura se genera con código del proyecto. La geografía
+es aproximada y la cuadrícula opcional representa meridianos y paralelos.
+La importación de Timeline y los datos de viajes llegarán en fases posteriores.
 
-La hoja de ruta está en [PLAN.md](PLAN.md) y las instrucciones para continuar el
-desarrollo, en [AGENTS.md](AGENTS.md).
+La hoja de ruta y las instrucciones de desarrollo están en [PLAN.md](PLAN.md)
+y [AGENTS.md](AGENTS.md).
 
-![Globo WebGL nativo con textura NASA y fronteras de Natural Earth](docs/images/webgl-nativo.png)
+![Globo de ATLAS con las costas y el relieve ilustrados](docs/images/tierra-original.png)
 
 ## Arrancar en local
 
@@ -52,7 +50,7 @@ y revisión de origen en [docs/performance/](docs/performance/).
 
 Arrastra para girar la Tierra y usa la rueda o los controles de zoom para
 acercarte. En móvil puedes usar los gestos táctiles. La interfaz permite volver
-a la vista inicial, inclinar la cámara y activar o desactivar las fronteras y la
+a la vista inicial, inclinar la cámara y activar o desactivar la cuadrícula y la
 iluminación día/noche.
 
 El área del globo también se puede enfocar con Tab: las flechas mueven la cámara,
@@ -62,53 +60,27 @@ ayuda, la privacidad y la hoja de ruta se pueden consultar con teclado. Si el
 navegador no puede mostrar WebGL, queda disponible una vista accesible y la
 opción de reintentar.
 
-La Tierra es un elipsoide WGS84 con textura NASA Blue Marble. Las fronteras
-proceden de Natural Earth Admin 0, escala 1:50m. Ambos se sirven con la aplicación
-y conservan sus atribuciones visibles. El modelo representa la superficie
-terrestre sobre el elipsoide; su detalle procede de la textura local.
-
-La [procedencia y las licencias de la cartografía](public/maps/README.md)
-incluyen versiones y hashes. Las 242 entidades de Natural Earth incluyen
-territorios y áreas disputadas; no son un contador de países visitados. El
-formato binario de fronteras es solo para dibujar. La futura geocodificación
-usará geometrías e índices adecuados para decidir países y ciudades.
+El motor proyecta el dibujo original sobre un elipsoide WGS84. Los contornos
+son ilustrativos y omiten las fronteras oficiales. El PNG indexado se genera
+a partir de las formas, colores y relieve visual definidos en el proyecto.
+[Cómo se genera la Tierra](public/maps/ATLAS-EARTH.md).
 
 ## Rendimiento
 
-El visor usa buffers de GPU y shaders GLSL propios. Las fronteras comparten un
-lote de líneas en lugar de crear una entidad por cada polígono. La escena se
-dibuja cuando cambia; la rotación se pausa al ocultar la pestaña o el visor. La
-resolución de renderizado tiene un límite para controlar el trabajo en pantallas
-con mucha densidad de píxeles.
+El globo y las estrellas se dibujan con dos llamadas a la GPU por fotograma. La
+cuadrícula se calcula en el shader de la Tierra. El visor reutiliza la malla,
+los buffers y las matrices de cámara, limita el lienzo a 850.000 píxeles y
+dibuja al cambiar la escena. La rotación automática se limita a unos
+30 FPS y se pausa al ocultar el visor. El arrastre y el zoom actualizan la escena
+en el siguiente fotograma disponible.
 
-El JavaScript de toda la página pasa de **4,6 MB a 41 KB sin comprimir**:
-una reducción del **99,1 %** frente al build anterior. Estas son las cifras
-exactas, con las mismas unidades en ambas versiones:
+La textura se sube a la GPU en RGB565. El navegador libera la imagen decodificada
+y conserva el PNG comprimido para reconstruirla si se pierde el contexto WebGL.
+El planeta opaco se dibuja sobre las estrellas sin un búfer de profundidad.
 
-| Medida                          | Versión anterior | WebGL nativo |
-| ------------------------------- | ---------------: | -----------: |
-| JavaScript de build, bytes      |        4.615.573 |       41.046 |
-| JavaScript con gzip, bytes      |        1.258.993 |       14.920 |
-| Marcador de globo preparado, ms |            3.110 |          247 |
-| Marcador de fronteras, ms       |            3.406 |          292 |
-| Solicitudes de subrecursos      |               24 |            5 |
-
-El arranque se midió una vez por versión, con navegador frío, Chromium y
-SwiftShader, viewport 1280 × 850 a densidad 1, movimiento reducido y servidor
-local. Es una comparación reproducible de inicialización, no una medición de FPS
-ni una promesa de esos tiempos en todos los dispositivos. El método y los
-informes originales están en [docs/performance/README.md](docs/performance/README.md).
-
-El build nuevo cumple los presupuestos de **64 KiB de JS y 24 KiB con gzip**.
-`npm run build` comprueba esos límites automáticamente. La imagen NASA ocupa
-356.467 bytes y las fronteras binarias, 215.296 bytes; la suma estimada de
-JS/CSS con gzip y ambos mapas es de 590.694 bytes, aproximadamente 591 KB.
-La textura y el binario mantienen su tamaño original en esa estimación; no
-incluye el documento HTML ni las cabeceras de la conexión.
-
-La aplicación ya no utiliza los modos de Cesium ion ni Google 3D Tiles de la
-implementación anterior. El motor propio y los recursos locales son la base de
-esta revisión; las antiguas claves de mapas no intervienen en ella.
+El build aplica presupuestos de 48 KiB de JavaScript, 20 KiB con gzip y 64 KiB
+para la estimación conjunta de JavaScript, estilos y textura.
+[Medidas y método de comparación](docs/performance/README.md).
 
 ## Privacidad
 
@@ -171,19 +143,19 @@ scripts/                  Calidad, generación de mapas y mediciones
 data/sample/              Futuro dataset sintético
 data/raw/                 Exportaciones locales, ignoradas por Git
 public/data/              Futura salida agregada y saneada
-public/maps/              Textura y fronteras públicas con procedencia
+public/maps/              Ilustración original de la Tierra
 docs/performance/         Informes de tamaño y arranque
 .github/workflows/        CI y publicación
 ```
 
-Para reproducir la cartografía pública:
+Para generar o comprobar la textura:
 
 ```sh
-node scripts/prepare-maps.mjs
-node scripts/prepare-borders.mjs
+node scripts/prepare-earth.mjs
+node scripts/prepare-earth.mjs --check
 ```
 
-La compilación normal usa los archivos ya versionados y no vuelve a descargarlos.
+La compilación usa el PNG versionado. La generación funciona sin red.
 
 ## Desplegar
 

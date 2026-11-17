@@ -10,5 +10,3 @@ atlas.config.json
 .env.*
 !.env.example
 .husky/_/
-# Generated public geography; reproduce with scripts/prepare-maps.mjs.
-public/maps/countries.geojson

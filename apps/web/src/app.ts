@@ -1,4 +1,4 @@
-import type GlobeRenderer from './globe/GlobeRenderer';
+import GlobeRenderer from './globe/GlobeRenderer';
 import type { GlobeStatus } from './globe/types';
 import { copy } from './texts';
 
@@ -13,7 +13,7 @@ type IconName =
   | 'minus'
   | 'tilt'
   | 'rotate'
-  | 'layers'
+  | 'grid'
   | 'sun'
   | 'help'
   | 'list';
@@ -29,7 +29,7 @@ const iconPaths: Record<IconName, string> = {
   minus: '<path d="M5 12h14"/>',
   tilt: '<ellipse cx="12" cy="15" rx="9" ry="4" transform="rotate(-20 12 15)"/><path d="m8 4 4-2 4 2M12 2v9"/>',
   rotate: '<path d="M20 10a8 8 0 1 0-2 8M20 4v6h-6"/>',
-  layers: '<path d="m12 3 10 5-10 5L2 8l10-5ZM2 12l10 5 10-5M2 16l10 5 10-5"/>',
+  grid: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3v.1"/>',
   list: '<path d="M9 6h12M9 12h12M9 18h12M3 6h.1M3 12h.1M3 18h.1"/>',
@@ -100,7 +100,7 @@ function template(): string {
           <div class="empty-atlas"><span class="empty-mark" aria-hidden="true">+</span><div><p>${escape(copy.emptyLabel)}</p><span>${escape(copy.emptyDescription)}</span></div></div>
         </aside>
         <div class="map-options" aria-label="${escape(copy.layersLabel)}">
-          <button class="option-button" data-action="countries" aria-pressed="true" disabled>${icon('layers')}<span>${escape(copy.countries)}</span><span class="toggle-indicator" aria-hidden="true"></span></button>
+          <button class="option-button" data-action="grid" aria-pressed="false" disabled>${icon('grid')}<span>${escape(copy.grid)}</span><span class="toggle-indicator" aria-hidden="true"></span></button>
           <button class="option-button" data-action="lighting" aria-pressed="true" disabled>${icon('sun')}<span>${escape(copy.lighting)}</span><span class="toggle-indicator" aria-hidden="true"></span></button>
         </div>
         <div class="loading-indicator" aria-hidden="true"><span class="loading-orbit"></span><span>${escape(copy.status.loading)}</span></div>
@@ -117,7 +117,7 @@ function template(): string {
         <div class="explorer-status"><p class="phase-label">${escape(copy.phase)}</p><p role="status" aria-live="polite" data-testid="globe-status" data-state="loading"><span class="status-dot loading"></span><span class="status-value">${escape(copy.status.loading)}</span></p><p class="status-note" hidden></p></div>
         <button class="help-button icon-button" data-dialog="help" aria-label="${escape(copy.help)}" title="${escape(copy.help)}">${icon('help')}</button>
         <p class="reduced-motion-note sr-only" hidden>${escape(copy.reducedMotion)}</p>
-        <footer class="credits" aria-label="${escape(copy.attributionsLabel)}"><a href="https://svs.gsfc.nasa.gov/3615/" target="_blank" rel="noopener noreferrer">NASA/Goddard SVS · Blue Marble</a><span aria-hidden="true"> · </span><a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">Natural Earth</a></footer>
+        <footer class="credits" aria-label="${escape(copy.attributionsLabel)}">${escape(copy.cartographyCredit)}</footer>
       </main>
       <dialog class="info-dialog" aria-labelledby="dialog-title">
         <div class="dialog-content">
@@ -126,7 +126,7 @@ function template(): string {
           <section data-panel="privacy" hidden><p class="dialog-intro">${escape(copy.privacyDialog.intro)}</p>${itemList(copy.privacyDialog.items)}</section>
           <section data-panel="help" hidden><p class="dialog-intro">${escape(copy.helpDialog.intro)}</p>${itemList(copy.helpDialog.items)}</section>
           <section data-panel="project" hidden><p class="dialog-intro">${escape(copy.projectDialog.intro)}</p><div class="phase-grid" aria-label="${escape(copy.phasesLabel)}">${phases}</div><div id="phase-detail" class="phase-detail" aria-live="polite" aria-atomic="true"><h3></h3><p></p></div></section>
-          <section data-panel="accessible" hidden><p class="dialog-intro">${escape(copy.accessibleDialog.intro)}</p><dl class="accessible-summary"><div><dt>${escape(copy.accessibleDialog.explorerLabel)}</dt><dd data-summary="status"></dd></div><div><dt>${escape(copy.accessibleDialog.bordersLabel)}</dt><dd data-summary="countries"></dd></div><div><dt>${escape(copy.accessibleDialog.dataLabel)}</dt><dd>${escape(copy.accessibleDialog.noData)}</dd></div></dl><h3>${escape(copy.accessibleDialog.controls)}</h3><p>${escape(copy.accessibleDialog.controlsDescription)}</p><h3>${escape(copy.accessibleDialog.next)}</h3><p>${escape(copy.accessibleDialog.nextDescription)}</p><button class="text-button" data-dialog="project">${escape(copy.accessibleDialog.projectAction)}${icon('arrow')}</button></section>
+          <section data-panel="accessible" hidden><p class="dialog-intro">${escape(copy.accessibleDialog.intro)}</p><dl class="accessible-summary"><div><dt>${escape(copy.accessibleDialog.explorerLabel)}</dt><dd data-summary="status"></dd></div><div><dt>${escape(copy.accessibleDialog.cartographyLabel)}</dt><dd>${escape(copy.accessibleDialog.cartographyDescription)}</dd></div><div><dt>${escape(copy.accessibleDialog.gridLabel)}</dt><dd data-summary="grid"></dd></div><div><dt>${escape(copy.accessibleDialog.dataLabel)}</dt><dd>${escape(copy.accessibleDialog.noData)}</dd></div></dl><h3>${escape(copy.accessibleDialog.controls)}</h3><p>${escape(copy.accessibleDialog.controlsDescription)}</p><h3>${escape(copy.accessibleDialog.next)}</h3><p>${escape(copy.accessibleDialog.nextDescription)}</p><button class="text-button" data-dialog="project">${escape(copy.accessibleDialog.projectAction)}${icon('arrow')}</button></section>
           <button class="primary-button dialog-done" data-action="close-dialog">${escape(copy.understood)}</button>
         </div>
       </dialog>
@@ -156,11 +156,11 @@ export function mountAtlas(root: HTMLElement): () => void {
   const cameraButtons =
     root.querySelectorAll<HTMLButtonElement>('[data-camera]');
   const rotationButton = query<HTMLButtonElement>('[data-action="rotation"]');
-  const countriesButton = query<HTMLButtonElement>('[data-action="countries"]');
+  const gridButton = query<HTMLButtonElement>('[data-action="grid"]');
   const lightingButton = query<HTMLButtonElement>('[data-action="lighting"]');
   const reducedMotionNote = query<HTMLElement>('.reduced-motion-note');
   const summaryStatus = query<HTMLElement>('[data-summary="status"]');
-  const summaryCountries = query<HTMLElement>('[data-summary="countries"]');
+  const summaryGrid = query<HTMLElement>('[data-summary="grid"]');
   const dialog = query<HTMLDialogElement>('.info-dialog');
   const dialogTitle = query<HTMLHeadingElement>('#dialog-title');
   const dialogEyebrow = query<HTMLElement>('.dialog-eyebrow');
@@ -173,17 +173,14 @@ export function mountAtlas(root: HTMLElement): () => void {
   );
   let reducedMotion = motionPreference.matches;
   let autoRotate = !reducedMotion;
-  let countriesVisible = true;
+  let gridVisible = false;
   let lighting = true;
   let activeDialog: DialogKind | null = null;
   let returnFocus: HTMLElement | null = null;
   let renderer: GlobeRenderer | null = null;
-  let modulePromise:
-    Promise<typeof import('./globe/GlobeRenderer')> | undefined;
-  let importFailed = false;
   let generation = 0;
   let disposed = false;
-  let status: GlobeStatus = { state: 'loading', countryCount: 0 };
+  let status: GlobeStatus = { state: 'loading' };
 
   const updateControls = (): void => {
     const ready = status.state === 'ready';
@@ -194,8 +191,14 @@ export function mountAtlas(root: HTMLElement): () => void {
       String(autoRotate && ready && !reducedMotion),
     );
     rotationButton.title = reducedMotion ? copy.reducedMotion : copy.rotation;
-    countriesButton.disabled = !ready || status.countryCount === 0;
-    countriesButton.setAttribute('aria-pressed', String(countriesVisible));
+    gridButton.disabled = !ready;
+    gridButton.setAttribute('aria-pressed', String(gridVisible));
+    setText(
+      summaryGrid,
+      gridVisible
+        ? copy.accessibleDialog.gridVisible
+        : copy.accessibleDialog.gridHidden,
+    );
     lightingButton.disabled = !ready;
     lightingButton.setAttribute('aria-pressed', String(lighting));
     reducedMotionNote.hidden = !reducedMotion;
@@ -212,12 +215,6 @@ export function mountAtlas(root: HTMLElement): () => void {
     loading.hidden = next.state !== 'loading';
     fallback.hidden = next.state !== 'error';
     setText(summaryStatus, copy.status[next.state]);
-    setText(
-      summaryCountries,
-      next.countryCount > 0
-        ? `${next.countryCount} ${copy.accessibleDialog.availableTerritories}`
-        : copy.accessibleDialog.notAvailable,
-    );
     updateControls();
   };
 
@@ -273,27 +270,17 @@ export function mountAtlas(root: HTMLElement): () => void {
     returnFocus = null;
   };
 
-  const initializeGlobe = async (): Promise<void> => {
+  const initializeGlobe = (): void => {
+    if (disposed) return;
     const ownGeneration = ++generation;
     renderer?.destroy();
     renderer = null;
     host.replaceChildren();
-    updateStatus({ state: 'loading', countryCount: 0 });
-    let module: typeof import('./globe/GlobeRenderer');
+    updateStatus({ state: 'loading' });
     try {
-      modulePromise ??= import('./globe/GlobeRenderer');
-      module = await modulePromise;
-    } catch {
-      if (disposed || generation !== ownGeneration) return;
-      importFailed = true;
-      updateStatus({ state: 'error', countryCount: 0 });
-      return;
-    }
-    if (disposed || generation !== ownGeneration) return;
-    try {
-      renderer = new module.default(host, {
+      renderer = new GlobeRenderer(host, {
         autoRotate,
-        countriesVisible,
+        gridVisible,
         lighting,
         reducedMotion,
         onInteraction: stopRotation,
@@ -302,7 +289,7 @@ export function mountAtlas(root: HTMLElement): () => void {
         },
       });
     } catch {
-      updateStatus({ state: 'error', countryCount: 0 });
+      updateStatus({ state: 'error' });
     }
   };
 
@@ -329,16 +316,15 @@ export function mountAtlas(root: HTMLElement): () => void {
       else if (button.dataset.phase !== undefined)
         selectPhase(Number(button.dataset.phase));
       else if (action === 'retry') {
-        if (importFailed) window.location.reload();
-        else void initializeGlobe();
+        initializeGlobe();
       } else if (action === 'rotation') {
         autoRotate = !autoRotate;
         renderer?.setAutoRotate(autoRotate);
         updateControls();
-      } else if (action === 'countries') {
+      } else if (action === 'grid') {
         stopRotation();
-        countriesVisible = !countriesVisible;
-        renderer?.setCountriesVisible(countriesVisible);
+        gridVisible = !gridVisible;
+        renderer?.setGridVisible(gridVisible);
         updateControls();
       } else if (action === 'lighting') {
         stopRotation();
@@ -429,7 +415,7 @@ export function mountAtlas(root: HTMLElement): () => void {
 
   selectPhase(1);
   updateStatus(status);
-  void initializeGlobe();
+  initializeGlobe();
 
   return () => {
     if (disposed) return;

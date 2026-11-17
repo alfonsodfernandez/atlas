@@ -1,9 +1,8 @@
 # ATLAS — hoja de ruta
 
-Las Fases 0 y 1 originales están integradas en `main`. El hito vigente es
-**reescribir el visor en WebGL nativo por rendimiento**, a petición explícita del
-usuario el 16 de noviembre de 2026. La Tierra y la interfaz se programan a mano;
-esta decisión sustituye el stack inicial de Cesium y frameworks de UI.
+El hito activo de la Fase 1 es **Tierra original de ATLAS**. El usuario eligió
+continentes propios, geografía aproximada y ausencia de fronteras oficiales.
+El motor de WebGL directo y la interfaz nativa se mantienen y se aligeran.
 
 Se mantiene el avance por fases y un proyecto funcional en cada hito. No se
 solicitan ni utilizan datos reales para desarrollar. Las funciones futuras de
@@ -42,9 +41,12 @@ La implementación original con Cesium se integró mediante la
 al final del documento. El usuario ha pedido sustituirla por un motor propio para
 reducir la lentitud; sus resultados no validan automáticamente la reescritura.
 
-### Reescritura por rendimiento — vigente
+### Primera versión WebGL nativa
 
-Rama: `fase-1-webgl-nativo`.
+Rama: `fase-1-webgl-nativo`. Integrada en `ffebdb5` mediante la [PR #3](https://github.com/alfonsodfernandez/atlas/pull/3).
+[CI de main](https://github.com/alfonsodfernandez/atlas/actions/runs/44167058562) y
+[despliegue](https://github.com/alfonsodfernandez/atlas/actions/runs/44167643885)
+verificados el 17 de noviembre de 2026.
 
 - [x] Dibujar un elipsoide WGS84 con geometría, cámara, matrices y shaders GLSL
       propios sobre WebGL, con textura NASA, estrellas e iluminación.
@@ -65,11 +67,27 @@ Rama: `fase-1-webgl-nativo`.
 - [x] Confirmar instalación limpia, formato, lint, tipos, tests y build locales.
 - [x] Completar el E2E final tras los ajustes de liberación de recursos GPU.
 - [x] Confirmar CI verde para la revisión nativa.
-- [ ] Publicar la revisión nativa y comprobar la URL y sus recursos.
+- [x] Publicar la revisión nativa y comprobar la URL y sus recursos.
 
 **Criterio de cierre:** globo nativo funcional, presupuesto de descarga comprobado,
 pruebas verdes y publicación verificada. Los informes de tamaño y arranque no
 sustituyen una medición de FPS en dispositivos físicos.
+
+### Tierra original — fase actual
+
+Rama: `fase-1-tierra-original`.
+
+- [x] Adoptar la geografía aproximada solicitada, con contornos originales y
+      cuadrícula opcional.
+- [x] Sustituir los recursos de cartografía de la primera versión nativa.
+- [x] Dibujar planeta y estrellas en dos llamadas a la GPU y reutilizar la
+      memoria de la cámara.
+- [x] Limitar la resolución y la rotación automática. Mantener la interacción
+      en el siguiente fotograma disponible.
+- [x] Validar la textura, el presupuesto y los controles. La compilación suma
+      48.006 bytes de JavaScript y CSS con gzip más el PNG. Las mediciones y su
+      método están en [docs/performance/](docs/performance/).
+- [ ] Verificar la CI y el despliegue.
 
 ## Fase 2 — Datos
 
@@ -189,15 +207,9 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
   inicial de JS/CSS con gzip y mapas es de 590.694 bytes, dentro de 700 KiB.
   La reducción de JavaScript bruto es del 99,1 %. Las métricas exactas y los
   límites de la comparación están en [docs/performance/README.md](docs/performance/README.md).
-- **Cartografía:** se conserva NASA Blue Marble original (356.467 bytes) y
-  Natural Earth 1:50m. `borders.bin` usa 215.296 bytes para las 242 entidades,
-  1.632 anillos y 52.186 puntos. La geometría se agrupa para dibujar; las entidades
-  incluyen territorios y áreas disputadas y no son países visitados. Fuentes,
-  formato, licencias y hashes en [public/maps/README.md](public/maps/README.md).
-- **Recursos y proveedores:** el motor nuevo usa cartografía local. Los modos
-  Cesium ion/Bing y Google 3D Tiles y sus claves pertenecen a la versión anterior;
-  no intervienen en la reescritura. El nuevo hito prioriza coste de descarga y
-  renderizado sobre terreno o edificios de esos proveedores.
+- **Cartografía actual:** contornos geográficos dibujados a mano con fines
+  ilustrativos. El PNG indexado se obtiene desde código de ATLAS. La cuadrícula
+  es un recurso de orientación y no representa límites políticos.
 - **Fases:** el trabajo actual sigue dentro del globo de Fase 1. Los parsers,
   datos, viajes y estadísticas de Fase 2 y siguientes no están implementados.
 - **Privacidad:** se mantienen el `.gitignore`, el hook del índice y el control
@@ -207,29 +219,19 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
   actuales de Timeline en fuentes externas y citar ejemplos/documentación.
 - **Datos de desarrollo:** solo muestras sintéticas inequívocas cuando llegue
   la Fase 2; ninguna estadística inventada se presenta como historial de Alfonso.
-- **Hosting:** se mantiene GitHub Pages, sin cambiar la visibilidad del repositorio
-  ni registrar otro servicio. El usuario ha mostrado **Source: GitHub Actions**
-  guardado en la configuración. Los 403/404 anteriores quedan como historial; el
-  resultado del despliegue y la URL de la revisión nativa se verificarán al cerrar
-  este hito. El workflow publica únicamente el main actual con CI correcta.
+- **Hosting:** GitHub Pages publicó la primera versión nativa y se verificó su
+  renderizado. Cada publicación usa la revisión actual de main con CI correcta.
 - **Git:** ramas por fase, commits convencionales y merge con comprobaciones
   verdes. Nunca `push --force` a `main`.
-- **Integración nativa pendiente de Alfonso:** la revisión automática rechazó
-  fusionar la PR #3 porque modificar `main` activa el despliegue y requiere una
-  autorización explícita para fusionar y publicar. El código y sus checks están
-  listos; no se elude el bloqueo mediante Git ni otro mecanismo.
 - **Pendiente de Alfonso, más adelante:** exportar su historial en su propio
   equipo y decidir zonas de exclusión y lugares públicos. Ninguno de esos datos
   es necesario para desarrollar el motor.
 
-## Validación de la reescritura nativa
+## Validación histórica de la primera reescritura nativa
 
 Comprobaciones locales comunicadas para la revisión nativa:
 
 - `npm ci`, `npm run check` y `npm run build`: correctos; 48 pruebas Vitest verdes.
-- Primera suite E2E nativa: 14 casos verdes en 35,3 s. Se prepara una ejecución
-  final después de ajustar la liberación de recursos GPU; no se considera
-  completada esa verificación hasta registrar su resultado.
 - JavaScript de build: **41.046 bytes brutos / 14.920 bytes gzip** frente a
   **4.615.573 / 1.258.993** anteriores. Reducción del 99,1 % en JS bruto.
 - CSS con gzip: 4.011 bytes. NASA: 356.467 bytes. Fronteras: 215.296 bytes.
@@ -250,11 +252,9 @@ La ejecución E2E final pasa los 14 casos en 35,9 segundos, incluidos recuperaci
 de contexto, gestos táctiles, imagen real y reposo sin dibujar. La CI de `8020fb0`
 pasa en [push](https://github.com/alfonsodfernandez/atlas/actions/runs/43900026345)
 y [PR](https://github.com/alfonsodfernandez/atlas/actions/runs/43900237582).
-La [PR #3](https://github.com/alfonsodfernandez/atlas/pull/3) está lista; quedan
-pendientes la autorización explícita para fusionar/publicar y la comprobación
-del despliegue público. Estos datos de inicialización
-con SwiftShader no acreditan FPS ni tiempos garantizados en dispositivos físicos.
-Las cifras y pruebas históricas de abajo corresponden a las versiones anteriores.
+La [PR #3](https://github.com/alfonsodfernandez/atlas/pull/3) se integró como
+`ffebdb5` y se verificó la versión pública. Las cifras de SwiftShader describen
+el entorno de prueba y la disponibilidad inicial del globo.
 
 ## Validación histórica de Fase 0
 

@@ -1,0 +1,28 @@
+{
+  "javascript": [
+    {
+      "name": "index-BVyFirlo.js",
+      "bytes": 36014,
+      "gzipBytes": 13257
+    }
+  ],
+  "styles": [
+    {
+      "name": "index-CV_gO7DE.css",
+      "bytes": 14480,
+      "gzipBytes": 3981
+    }
+  ],
+  "javascriptBytes": 36014,
+  "javascriptGzipBytes": 13257,
+  "cssGzipBytes": 3981,
+  "maps": {
+    "atlas-earth.png": 30768
+  },
+  "initialPayloadGzipEstimateBytes": 48006,
+  "budgets": {
+    "javascriptBytes": 49152,
+    "javascriptGzipBytes": 20480,
+    "initialPayloadGzipEstimateBytes": 65536
+  }
+}

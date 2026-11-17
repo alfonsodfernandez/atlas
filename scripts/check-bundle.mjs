@@ -19,25 +19,25 @@ for (const name of await readdir(assets)) {
 }
 const sum = (entries, key) =>
   entries.reduce((total, entry) => total + entry[key], 0);
-const maps = {};
-for (const name of ['earth.jpg', 'borders.bin']) {
-  maps[name] = (await stat(new URL(`maps/${name}`, build))).size;
-}
+const mapDirectory = new URL('maps/', build);
+const mapFile = 'atlas-earth.png';
+const mapFiles = await readdir(mapDirectory);
+if (mapFiles.some((name) => name !== mapFile && name !== 'ATLAS-EARTH.md'))
+  throw new Error('El build contiene cartografía distinta a la de ATLAS.');
+const mapBytes = (await stat(new URL(mapFile, mapDirectory))).size;
 const report = {
   javascript,
   styles,
   javascriptBytes: sum(javascript, 'bytes'),
   javascriptGzipBytes: sum(javascript, 'gzipBytes'),
   cssGzipBytes: sum(styles, 'gzipBytes'),
-  maps,
+  maps: { [mapFile]: mapBytes },
   initialPayloadGzipEstimateBytes:
-    sum(javascript, 'gzipBytes') +
-    sum(styles, 'gzipBytes') +
-    Object.values(maps).reduce((total, bytes) => total + bytes, 0),
+    sum(javascript, 'gzipBytes') + sum(styles, 'gzipBytes') + mapBytes,
   budgets: {
-    javascriptBytes: 65_536,
-    javascriptGzipBytes: 24_576,
-    initialPayloadGzipEstimateBytes: 716_800,
+    javascriptBytes: 49_152,
+    javascriptGzipBytes: 20_480,
+    initialPayloadGzipEstimateBytes: 65_536,
   },
 };
 if (javascript.length === 0)

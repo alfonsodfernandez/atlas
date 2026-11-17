@@ -1,14 +1,8 @@
-import {
-  ECCENTRICITY_SQUARED,
-  POLAR_RATIO,
-  radians,
-  surfacePoint,
-  wrapLongitude,
-} from './math';
+import { ECCENTRICITY_SQUARED, POLAR_RATIO, radians } from './math';
 
 export function createEarthMesh(
-  longitudes = 96,
-  latitudes = 48,
+  longitudes = 64,
+  latitudes = 32,
 ): { vertices: Float32Array; indices: Uint16Array } {
   if (
     !Number.isInteger(longitudes) ||
@@ -80,97 +74,6 @@ export function createStars(count = 512): Float32Array {
     );
   }
   return stars;
-}
-
-/** Decode only the public, bounded ATLB format. Expansion happens once, off the render path. */
-export function decodeBorders(bytes: ArrayBuffer): {
-  positions: Float32Array;
-  countryCount: number;
-} {
-  const view = new DataView(bytes);
-  if (
-    bytes.byteLength < 24 ||
-    view.getUint32(0, false) !== 0x41544c42 ||
-    view.getUint16(4, true) !== 1 ||
-    view.getUint16(6, true) !== 0 ||
-    view.getUint32(20, true) !== 0
-  )
-    throw new Error('Cartografía no válida.');
-  const countryCount = view.getUint32(8, true);
-  const ringCount = view.getUint32(12, true);
-  const pointCount = view.getUint32(16, true);
-  if (
-    countryCount < 1 ||
-    countryCount > 1_024 ||
-    ringCount < 1 ||
-    ringCount > 25_000 ||
-    pointCount < 4 ||
-    pointCount > 250_000 ||
-    bytes.byteLength !== 24 + ringCount * 4 + pointCount * 4
-  )
-    throw new Error('Cartografía fuera de los límites admitidos.');
-  const pointsOffset = 24 + ringCount * 4;
-  const coordinate = (index: number, axis: number): number => {
-    const value = view.getInt16(pointsOffset + index * 4 + axis * 2, true);
-    if (value === -32768) throw new Error('Coordenada no válida.');
-    return (value / 32767) * (axis === 0 ? 180 : 90);
-  };
-  let point = 0;
-  let segmentCount = 0;
-  for (let ring = 0; ring < ringCount; ring += 1) {
-    const length = view.getUint32(24 + ring * 4, true);
-    if (length < 4 || point + length > pointCount)
-      throw new Error('Anillo no válido.');
-    if (
-      coordinate(point, 0) !== coordinate(point + length - 1, 0) ||
-      coordinate(point, 1) !== coordinate(point + length - 1, 1)
-    )
-      throw new Error('Anillo abierto.');
-    for (let i = point; i < point + length - 1; i += 1) {
-      segmentCount += Math.max(
-        1,
-        Math.ceil(
-          Math.max(
-            Math.abs(wrapLongitude(coordinate(i + 1, 0) - coordinate(i, 0))),
-            Math.abs(coordinate(i + 1, 1) - coordinate(i, 1)),
-          ),
-        ),
-      );
-      if (segmentCount > 500_000)
-        throw new Error('Geometría demasiado grande.');
-    }
-    point += length;
-  }
-  if (point !== pointCount) throw new Error('El número de puntos no coincide.');
-  const positions = new Float32Array(segmentCount * 6);
-  let output = 0;
-  point = 0;
-  for (let ring = 0; ring < ringCount; ring += 1) {
-    const length = view.getUint32(24 + ring * 4, true);
-    for (let i = point; i < point + length - 1; i += 1) {
-      const lon = coordinate(i, 0);
-      const lat = coordinate(i, 1);
-      const deltaLon = wrapLongitude(coordinate(i + 1, 0) - lon);
-      const deltaLat = coordinate(i + 1, 1) - lat;
-      const steps = Math.max(
-        1,
-        Math.ceil(Math.max(Math.abs(deltaLon), Math.abs(deltaLat))),
-      );
-      for (let step = 0; step < steps; step += 1) {
-        for (const fraction of [step / steps, (step + 1) / steps]) {
-          const position = surfacePoint(
-            lon + deltaLon * fraction,
-            lat + deltaLat * fraction,
-            1.00015,
-          );
-          positions.set(position, output);
-          output += 3;
-        }
-      }
-    }
-    point += length;
-  }
-  return { positions, countryCount };
 }
 
 export const MAX_TILT = radians(45);

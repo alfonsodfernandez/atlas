@@ -41,6 +41,12 @@ try {
         Number(element?.getAttribute('data-country-count')) > 170
       ) {
         metrics.countriesReadyMs = performance.now();
+      }
+      if (
+        metrics.globeReadyMs !== null &&
+        (!element?.hasAttribute('data-country-count') ||
+          metrics.countriesReadyMs !== null)
+      ) {
         observer.disconnect();
       }
     });
@@ -52,7 +58,14 @@ try {
   });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(
-    () => window.atlasMeasurement.countriesReadyMs !== null,
+    () => {
+      const element = document.querySelector('[data-engine-state]');
+      return (
+        window.atlasMeasurement.globeReadyMs !== null &&
+        (!element?.hasAttribute('data-country-count') ||
+          window.atlasMeasurement.countriesReadyMs !== null)
+      );
+    },
     null,
     { timeout: 90_000 },
   );
@@ -64,7 +77,9 @@ try {
     );
     return {
       globeReadyMs: Math.round(metrics.globeReadyMs),
-      countriesReadyMs: Math.round(metrics.countriesReadyMs),
+      ...(metrics.countriesReadyMs !== null && {
+        countriesReadyMs: Math.round(metrics.countriesReadyMs),
+      }),
       longTaskCount: metrics.longTasks.length,
       longTaskDurationMs: Math.round(
         metrics.longTasks.reduce((sum, value) => sum + value, 0),
