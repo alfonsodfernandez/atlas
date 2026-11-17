@@ -1,11 +1,82 @@
 import { expect, test, type Page } from '@playwright/test';
 
 test.use({ reducedMotion: 'reduce' });
-test.setTimeout(90_000);
+test.setTimeout(30_000);
 
-const globeEngine = (page: Page) => page.getByTestId('cesium-globe');
+const globeEngine = (page: Page) => page.getByTestId('atlas-globe');
 const globeStage = (page: Page) =>
   page.getByRole('region', { name: 'Globo terráqueo 3D', exact: true });
+
+async function waitForBorders(page: Page) {
+  await expect
+    .poll(async () =>
+      Number(await globeEngine(page).getAttribute('data-country-count')),
+    )
+    .toBeGreaterThan(170);
+  await expect(globeEngine(page)).toHaveAttribute('data-draw-calls', '4');
+}
+
+async function frameCount(page: Page) {
+  return Number(await globeEngine(page).getAttribute('data-frame-count'));
+}
+
+async function expectIdleRenderer(page: Page) {
+  await expect
+    .poll(async () => {
+      const before = await frameCount(page);
+      // This is the measured idle interval, not a delay used to wait for loading.
+      const after = await globeEngine(page).evaluate(
+        (element) =>
+          new Promise<number>((resolve) => {
+            window.setTimeout(
+              () =>
+                resolve(Number((element as HTMLElement).dataset.frameCount)),
+              400,
+            );
+          }),
+      );
+      return after - before;
+    })
+    .toBe(0);
+}
+
+async function installPixelProbe(page: Page) {
+  await page.addInitScript(() => {
+    const capture = new MutationObserver(() => {
+      const element = document.querySelector('[data-testid="atlas-globe"]');
+      if (element?.getAttribute('data-engine-state') !== 'ready') return;
+      const canvas = element.querySelector('canvas');
+      const gl = canvas?.getContext('webgl2');
+      if (!canvas || !gl) return;
+      // Read the real frame before the compositor discards its non-preserved buffer.
+      const colors: number[][] = [];
+      for (const x of [0.36, 0.5, 0.64]) {
+        for (const y of [0.36, 0.5, 0.64]) {
+          const pixel = new Uint8Array(4);
+          gl.readPixels(
+            Math.floor(canvas.width * x),
+            Math.floor(canvas.height * y),
+            1,
+            1,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            pixel,
+          );
+          colors.push(Array.from(pixel));
+        }
+      }
+      (window as Window & { atlasPixelProbe?: number[][] }).atlasPixelProbe =
+        colors;
+      capture.disconnect();
+    });
+    capture.observe(document, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-engine-state'],
+    });
+  });
+}
 
 function observeRuntime(page: Page) {
   const errors: string[] = [];
@@ -42,7 +113,7 @@ async function waitForGlobe(page: Page) {
     'data-engine-state',
     /^(ready|error)$/,
     {
-      timeout: 45_000,
+      timeout: 15_000,
     },
   );
   await expect(globeEngine(page)).toHaveAttribute('data-engine-state', 'ready');
@@ -70,18 +141,45 @@ test('el globo real carga mapas locales, fronteras y controles de cámara sin er
   page,
 }) => {
   const assertRuntime = observeRuntime(page);
+  await installPixelProbe(page);
   await page.goto('./');
   await expect(page).toHaveTitle('ATLAS — Cada lugar, una historia');
   await waitForGlobe(page);
-  await expect
-    .poll(
-      async () =>
-        Number(await globeEngine(page).getAttribute('data-country-count')),
-      {
-        timeout: 45_000,
-      },
-    )
-    .toBeGreaterThan(170);
+  await waitForBorders(page);
+  const pixels = await page.evaluate(
+    () => (window as Window & { atlasPixelProbe?: number[][] }).atlasPixelProbe,
+  );
+  expect(pixels).toHaveLength(9);
+  const visibleColors = new Set(
+    pixels!
+      .filter(([r, g, b]) => r! + g! + b! > 30)
+      .map((rgba) =>
+        rgba
+          .slice(0, 3)
+          .map((channel) => Math.floor(channel / 8))
+          .join(','),
+      ),
+  );
+  expect(visibleColors.size).toBeGreaterThan(1);
+
+  const resources = await page.evaluate(() => {
+    const entries = performance.getEntriesByType(
+      'resource',
+    ) as PerformanceResourceTiming[];
+    return {
+      javascriptBytes: entries
+        .filter((entry) => new URL(entry.name).pathname.endsWith('.js'))
+        .reduce((bytes, entry) => bytes + entry.decodedBodySize, 0),
+      paths: entries.map((entry) => new URL(entry.name).pathname),
+    };
+  });
+  expect(resources.javascriptBytes).toBeGreaterThan(0);
+  expect(resources.javascriptBytes).toBeLessThanOrEqual(65_536);
+  expect(resources.paths.some((path) => /cesium|\/Workers\//i.test(path))).toBe(
+    false,
+  );
+  expect(resources.paths).toContain('/atlas/maps/borders.bin');
+  expect(resources.paths).not.toContain('/atlas/maps/countries.geojson');
 
   const initialHeight = await cameraValue(page, 'data-camera-height');
   await page.getByRole('button', { name: 'Acercar', exact: true }).click();
@@ -142,6 +240,19 @@ test('el globo real carga mapas locales, fronteras y controles de cámara sin er
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+  const resolution = await globeEngine(page)
+    .locator('canvas')
+    .evaluate((canvas) => {
+      if (!(canvas instanceof HTMLCanvasElement))
+        throw new Error('Lienzo no válido.');
+      return {
+        pixels: canvas.width * canvas.height,
+        ratio: canvas.width / canvas.getBoundingClientRect().width,
+      };
+    });
+  expect(resolution.pixels).toBeLessThanOrEqual(1_202_000);
+  expect(resolution.ratio).toBeLessThanOrEqual(1.51);
+  await expectIdleRenderer(page);
   assertRuntime();
 });
 
@@ -149,15 +260,123 @@ test('la interacción detiene la rotación automática', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('./');
   await waitForGlobe(page);
+  await waitForBorders(page);
   const rotation = page.getByRole('button', {
     name: 'Rotación automática',
     exact: true,
   });
   await expect(rotation).toBeEnabled();
   await expect(rotation).toHaveAttribute('aria-pressed', 'true');
+  const initialFrames = await frameCount(page);
+  await expect.poll(() => frameCount(page)).toBeGreaterThan(initialFrames);
+
+  await globeEngine(page).evaluate((element) => {
+    (element as HTMLElement).style.transform = 'translateY(-200vh)';
+  });
+  await expectIdleRenderer(page);
+  await globeEngine(page).evaluate((element) => {
+    (element as HTMLElement).style.transform = '';
+  });
+  const offscreenFrames = await frameCount(page);
+  await expect.poll(() => frameCount(page)).toBeGreaterThan(offscreenFrames);
   await globeStage(page).focus();
   await page.keyboard.press('ArrowRight');
   await expect(rotation).toHaveAttribute('aria-pressed', 'false');
+  await expectIdleRenderer(page);
+});
+
+test('el arrastre y el pellizco táctil mueven la cámara real', async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('./');
+  await waitForGlobe(page);
+  const canvas = globeEngine(page).locator('canvas');
+  const bounds = await canvas.boundingBox();
+  if (!bounds) throw new Error('El lienzo no tiene dimensiones visibles.');
+  const x = bounds.x + bounds.width / 2;
+  const y = bounds.y + bounds.height * 0.45;
+  const previousLongitude = await cameraValue(page, 'data-camera-longitude');
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 65, y + 15, { steps: 5 });
+  await page.mouse.up();
+  await expect
+    .poll(() => cameraValue(page, 'data-camera-longitude'))
+    .not.toBe(previousLongitude);
+  await expect(
+    page.getByRole('button', { name: 'Rotación automática', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'false');
+
+  if (testInfo.project.name.startsWith('mobile')) {
+    const previousHeight = await cameraValue(page, 'data-camera-height');
+    const session = await page.context().newCDPSession(page);
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [
+        { x: x - 25, y, id: 1 },
+        { x: x + 25, y, id: 2 },
+      ],
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [
+        { x: x - 40, y: y + 6, id: 1 },
+        { x: x + 40, y: y + 6, id: 2 },
+      ],
+    });
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    await session.detach();
+    await expect
+      .poll(() => cameraValue(page, 'data-camera-height'))
+      .toBeLessThan(previousHeight);
+  }
+});
+
+test('el contexto WebGL se recupera conservando el mapa y los controles', async ({
+  page,
+}) => {
+  const uncaughtErrors: string[] = [];
+  page.on('pageerror', (error) => uncaughtErrors.push(error.message));
+  await page.goto('./');
+  await waitForGlobe(page);
+  await waitForBorders(page);
+  const canvas = globeEngine(page).locator('canvas');
+  const originalCanvas = await canvas.elementHandle();
+  const initialFrames = await frameCount(page);
+  const canLoseContext = await canvas.evaluate((element) => {
+    if (!(element instanceof HTMLCanvasElement))
+      throw new Error('Lienzo no válido.');
+    const extension = element
+      .getContext('webgl2')
+      ?.getExtension('WEBGL_lose_context');
+    if (!extension) return false;
+    (
+      window as Window & { atlasRestoreContext?: () => void }
+    ).atlasRestoreContext = () => extension.restoreContext();
+    extension.loseContext();
+    return true;
+  });
+  expect(canLoseContext).toBe(true);
+  await expect(page.getByTestId('globe-status')).toHaveAttribute(
+    'data-state',
+    'error',
+  );
+  await page.evaluate(() =>
+    (
+      window as Window & { atlasRestoreContext?: () => void }
+    ).atlasRestoreContext?.(),
+  );
+  await waitForGlobe(page);
+  await waitForBorders(page);
+  expect(await originalCanvas?.evaluate((node) => node.isConnected)).toBe(true);
+  expect(await frameCount(page)).toBeGreaterThan(initialFrames);
+  await page.getByRole('button', { name: 'Acercar', exact: true }).click();
+  await expectIdleRenderer(page);
+  expect(uncaughtErrors).toEqual([]);
 });
 
 test('la privacidad conserva el foco al cerrar y reabrir rápidamente', async ({
@@ -223,7 +442,7 @@ test('sin WebGL se ofrece una alternativa accesible y la opción de reintentar',
 }) => {
   const uncaughtErrors: string[] = [];
   page.on('pageerror', (error) => uncaughtErrors.push(error.message));
-  // Only this failure-mode test disables WebGL. The other tests render Cesium.
+  // Only this failure-mode test disables WebGL. Other cases use the real GPU API.
   await page.addInitScript(() => {
     const getContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (
@@ -239,14 +458,17 @@ test('sin WebGL se ofrece una alternativa accesible y la opción de reintentar',
   await expect(page.getByTestId('globe-status')).toHaveAttribute(
     'data-state',
     'error',
-    { timeout: 45_000 },
+    { timeout: 15_000 },
   );
   const retry = page.getByRole('button', {
     name: 'Volver a intentar',
     exact: true,
   });
-  const failedEngine = await globeEngine(page).elementHandle();
-  if (!failedEngine) throw new Error('No se ha montado el explorador.');
+  const failedCanvas = await globeEngine(page)
+    .locator('canvas')
+    .elementHandle();
+  if (!failedCanvas)
+    throw new Error('No se ha creado el lienzo del explorador.');
   await expect(retry).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Navegación principal' })
@@ -257,12 +479,12 @@ test('sin WebGL se ofrece una alternativa accesible y la opción de reintentar',
   await page.keyboard.press('Escape');
   await retry.click();
   await expect
-    .poll(() => failedEngine.evaluate((node) => node.isConnected))
+    .poll(() => failedCanvas.evaluate((node) => node.isConnected))
     .toBe(false);
   await expect(page.getByTestId('globe-status')).toHaveAttribute(
     'data-state',
     'error',
-    { timeout: 45_000 },
+    { timeout: 15_000 },
   );
   expect(uncaughtErrors).toEqual([]);
 });

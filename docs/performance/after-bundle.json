@@ -1,0 +1,34 @@
+{
+  "javascript": [
+    {
+      "name": "GlobeRenderer-Dzk4KcZm.js",
+      "bytes": 21218,
+      "gzipBytes": 7199
+    },
+    {
+      "name": "index-B6Ek3rYm.js",
+      "bytes": 19828,
+      "gzipBytes": 7721
+    }
+  ],
+  "styles": [
+    {
+      "name": "index-CAWl_dMO.css",
+      "bytes": 14574,
+      "gzipBytes": 4011
+    }
+  ],
+  "javascriptBytes": 41046,
+  "javascriptGzipBytes": 14920,
+  "cssGzipBytes": 4011,
+  "maps": {
+    "earth.jpg": 356467,
+    "borders.bin": 215296
+  },
+  "initialPayloadGzipEstimateBytes": 590694,
+  "budgets": {
+    "javascriptBytes": 65536,
+    "javascriptGzipBytes": 24576,
+    "initialPayloadGzipEstimateBytes": 716800
+  }
+}

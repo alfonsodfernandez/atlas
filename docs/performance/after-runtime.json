@@ -1,0 +1,18 @@
+{
+  "measuredAt": "2026-11-16T15:38:35.642Z",
+  "url": "http://127.0.0.1:4173/atlas/",
+  "viewport": {
+    "width": 1280,
+    "height": 850,
+    "deviceScaleFactor": 1
+  },
+  "rendering": "Chromium + SwiftShader, cold browser, reduced motion, local static server",
+  "note": "Readiness markers measure application initialization; this is not a physical-device FPS benchmark.",
+  "globeReadyMs": 247,
+  "countriesReadyMs": 292,
+  "longTaskCount": 1,
+  "longTaskDurationMs": 139,
+  "javascriptDecodedBytes": 41046,
+  "resourceDecodedBytes": 627383,
+  "requestCount": 5
+}

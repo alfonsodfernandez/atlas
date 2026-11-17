@@ -1,0 +1,18 @@
+{
+  "revision": "9ee8fbf24fa63ae454a66b2ac34833e9f9c019e1",
+  "kind": "Cesium + React + Motion",
+  "files": [
+    {
+      "name": "Globe-BjIiFgBF.js",
+      "bytes": 4250043,
+      "gzipBytes": 1142189
+    },
+    {
+      "name": "index-D0M4Goys.js",
+      "bytes": 365530,
+      "gzipBytes": 116804
+    }
+  ],
+  "javascriptBytes": 4615573,
+  "javascriptGzipBytes": 1258993
+}

@@ -1,0 +1,65 @@
+import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
+
+const build = new URL('../apps/web/dist/', import.meta.url);
+const assets = new URL('assets/', build);
+const javascript = [];
+const styles = [];
+for (const name of await readdir(assets)) {
+  if (!/\.(?:js|css)$/.test(name)) continue;
+  const bytes = await readFile(new URL(name, assets));
+  const entry = {
+    name,
+    bytes: bytes.byteLength,
+    gzipBytes: gzipSync(bytes).byteLength,
+  };
+  if (name.endsWith('.js')) javascript.push(entry);
+  else styles.push(entry);
+}
+const sum = (entries, key) =>
+  entries.reduce((total, entry) => total + entry[key], 0);
+const maps = {};
+for (const name of ['earth.jpg', 'borders.bin']) {
+  maps[name] = (await stat(new URL(`maps/${name}`, build))).size;
+}
+const report = {
+  javascript,
+  styles,
+  javascriptBytes: sum(javascript, 'bytes'),
+  javascriptGzipBytes: sum(javascript, 'gzipBytes'),
+  cssGzipBytes: sum(styles, 'gzipBytes'),
+  maps,
+  initialPayloadGzipEstimateBytes:
+    sum(javascript, 'gzipBytes') +
+    sum(styles, 'gzipBytes') +
+    Object.values(maps).reduce((total, bytes) => total + bytes, 0),
+  budgets: {
+    javascriptBytes: 65_536,
+    javascriptGzipBytes: 24_576,
+    initialPayloadGzipEstimateBytes: 716_800,
+  },
+};
+if (javascript.length === 0)
+  throw new Error('El build no contiene JavaScript.');
+for (const [metric, limit] of Object.entries(report.budgets)) {
+  if (report[metric] > limit)
+    throw new Error(
+      `Presupuesto de ${metric} excedido: ${report[metric]} > ${limit}`,
+    );
+}
+try {
+  await stat(new URL('cesium/', build));
+  throw new Error('El build conserva archivos de Cesium.');
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+}
+const args = process.argv.slice(2);
+if (args.length > 0) {
+  if (args[0] !== '--report' || args.length !== 2)
+    throw new Error('Uso: node scripts/check-bundle.mjs [--report <archivo>]');
+  await writeFile(args[1], `${JSON.stringify(report, null, 2)}\n`);
+}
+process.stdout.write(
+  `${JSON.stringify({ ...report, directory: fileURLToPath(build) })}\n`,
+);
