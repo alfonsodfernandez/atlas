@@ -20,11 +20,13 @@ in highp vec2 vUv;
 in mediump float vShade;
 uniform sampler2D uMap;
 uniform bool uBorders;
+uniform bool uDemo;
 out vec4 color;
 void main(){
- vec2 map=texture(uMap,vUv).rg;
+ vec3 map=texture(uMap,vUv).rgb;
  float shore=1.0-abs(map.r*2.0-1.0);
- float lines=max(shore*0.38,uBorders?map.g*0.82:0.0);
- vec3 base=mix(vec3(0.925),vec3(0.78),map.r);
- color=vec4(mix(base,vec3(0.26),lines)*vShade,1.0);
+ float lines=max(shore*0.26,uBorders?map.g*0.64:0.0);
+ vec3 base=mix(vec3(0.49,0.63,0.66),vec3(0.65,0.69,0.52),map.r);
+ if(uDemo)base=mix(base,vec3(0.84,0.60,0.30),map.b);
+ color=vec4(mix(base,vec3(0.26,0.35,0.29),lines)*vShade,1.0);
 }`;

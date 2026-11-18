@@ -1,0 +1,92 @@
+{
+  "date": "2026-11-18",
+  "viewport": {
+    "width": 1280,
+    "height": 850,
+    "deviceScaleFactor": 1
+  },
+  "rendering": "Chromium + SwiftShader, cold browser, reduced motion, local static server",
+  "previous": {
+    "revision": "e07fe9ebef17802200df4786de596507ae9a9364",
+    "javascript": "index-Dv9X8udy.js",
+    "textureSha256": "b4ddd05ca8104caad6f1dcbf7125e78d36f4145538dae93b535bcbb72c970efa",
+    "javascriptDecodedBytes": 32389,
+    "resourceDecodedBytes": 63136,
+    "requestCount": 3,
+    "medianGlobeReadyMs": 153,
+    "startupAnimationDrawsPerSecond": 0,
+    "samples": [
+      {
+        "measuredAt": "2026-11-18T14:38:05.896Z",
+        "globeReadyMs": 185,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 83
+      },
+      {
+        "measuredAt": "2026-11-18T14:38:08.652Z",
+        "globeReadyMs": 157,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 80
+      },
+      {
+        "measuredAt": "2026-11-18T14:38:09.559Z",
+        "globeReadyMs": 153,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 72
+      },
+      {
+        "measuredAt": "2026-11-18T14:38:12.223Z",
+        "globeReadyMs": 110,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      },
+      {
+        "measuredAt": "2026-11-18T14:38:13.104Z",
+        "globeReadyMs": 137,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      }
+    ]
+  },
+  "globeFirst": {
+    "javascript": "index-CseI910X.js",
+    "textureSha256": "863f498ea926b7e36b23ff8cc2447d3f0ca967c6dc12eeea89c62de3e3cbb20e",
+    "javascriptDecodedBytes": 35103,
+    "resourceDecodedBytes": 62837,
+    "requestCount": 3,
+    "medianGlobeReadyMs": 156,
+    "startupAnimationDrawsPerSecond": 31,
+    "samples": [
+      {
+        "measuredAt": "2026-11-18T14:38:06.780Z",
+        "globeReadyMs": 179,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 75
+      },
+      {
+        "measuredAt": "2026-11-18T14:38:07.767Z",
+        "globeReadyMs": 164,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 72
+      },
+      {
+        "measuredAt": "2026-11-18T14:38:10.457Z",
+        "globeReadyMs": 152,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 75
+      },
+      {
+        "measuredAt": "2026-11-18T14:38:11.356Z",
+        "globeReadyMs": 156,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 79
+      },
+      {
+        "measuredAt": "2026-11-18T14:38:13.868Z",
+        "globeReadyMs": 152,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 83
+      }
+    ]
+  }
+}

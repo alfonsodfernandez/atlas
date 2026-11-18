@@ -21,17 +21,34 @@ interface Graphics {
   mvpUniform: WebGLUniformLocation | null;
   eyeUniform: WebGLUniformLocation | null;
   bordersUniform: WebGLUniformLocation | null;
+  demoUniform: WebGLUniformLocation | null;
   sphereVao: WebGLVertexArrayObject;
-  texture: WebGLTexture;
+  texture: WebGLTexture | null;
   indexCount: number;
 }
 type Pointer = { x: number; y: number; button: number };
+interface MapSource {
+  blob: Blob;
+  detail: boolean;
+}
+interface Transition {
+  longitude: number;
+  latitude: number;
+  range: number;
+  tilt: number;
+  target: Orbit;
+  started: number;
+  duration: number;
+}
 
 // Regional overview: the approximate mask has no street-level detail.
 const MIN_RANGE = 0.16;
 const MAX_RANGE = 9.4;
 const MAX_PIXELS = 850_000;
 const AUTO_FRAME_INTERVAL = 1000 / 30;
+const HOME_LONGITUDE = -3;
+const HOME_LATITUDE = 34;
+const DETAIL_RANGE = 1.15;
 
 /** One opaque cartographic globe, drawn only when needed. */
 export default class GlobeRenderer implements GlobeHandle {
@@ -56,7 +73,12 @@ export default class GlobeRenderer implements GlobeHandle {
   private readonly onAnimationFrame = (time: number) => this.frame(time);
   private gl: WebGL2RenderingContext | null = null;
   private graphics: Graphics | null = null;
-  private textureBlob: Blob | null = null;
+  private activeMap: MapSource | null = null;
+  private pendingMap: MapSource | null = null;
+  private uploading = false;
+  private detailRequested = false;
+  private entrancePending = true;
+  private transition: Transition | null = null;
   private imageLoaded = false;
   private ready = false;
   private destroyed = false;
@@ -71,7 +93,12 @@ export default class GlobeRenderer implements GlobeHandle {
   private cssHeight = 1;
   private cameraTouched = false;
   private status: GlobeStatus = { state: 'loading' };
-  private orbit: Orbit = { longitude: -15, latitude: 25, range: 2, tilt: 0 };
+  private orbit: Orbit = {
+    longitude: HOME_LONGITUDE,
+    latitude: HOME_LATITUDE,
+    range: 2,
+    tilt: 0,
+  };
 
   constructor(
     private readonly host: HTMLElement,
@@ -81,6 +108,7 @@ export default class GlobeRenderer implements GlobeHandle {
     host.dataset.engine = 'native-webgl2';
     host.dataset.frameCount = '0';
     host.dataset.drawCalls = '0';
+    host.dataset.mapDetail = 'base';
     this.canvas.setAttribute('aria-label', 'Globo terráqueo 3D de Atlas');
     this.canvas.tabIndex = -1;
     Object.assign(this.canvas.style, {
@@ -204,36 +232,29 @@ export default class GlobeRenderer implements GlobeHandle {
       gl.enableVertexAttribArray(location!);
       gl.vertexAttribPointer(location!, length!, gl.FLOAT, false, 32, offset!);
     }
-    const texture = gl.createTexture();
-    if (!texture) throw new Error('No se pudo crear la textura.');
-    this.gpuCleanup.push(() => gl.deleteTexture(texture));
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(
-      gl.TEXTURE_2D,
-      gl.TEXTURE_MIN_FILTER,
-      gl.LINEAR_MIPMAP_LINEAR,
-    );
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    this.graphics = {
+    const graphics: Graphics = {
       program,
       mvpUniform: gl.getUniformLocation(program, 'uMvp'),
       eyeUniform: gl.getUniformLocation(program, 'uEye'),
       bordersUniform: gl.getUniformLocation(program, 'uBorders'),
+      demoUniform: gl.getUniformLocation(program, 'uDemo'),
       sphereVao,
-      texture,
+      texture: null,
       indexCount: mesh.indices.length,
     };
+    this.graphics = graphics;
+    this.gpuCleanup.push(() => {
+      if (graphics.texture) gl.deleteTexture(graphics.texture);
+    });
     // This renderer exclusively owns one program and VAO for the context.
     gl.useProgram(program);
     gl.uniform1i(gl.getUniformLocation(program, 'uMap'), 0);
+    gl.uniform1i(graphics.demoUniform, Number(this.options.demoVisible));
     gl.uniform1i(
       this.graphics.bordersUniform,
       Number(this.options.bordersVisible),
     );
-    gl.clearColor(245 / 255, 244 / 255, 240 / 255, 1);
+    gl.clearColor(244 / 255, 241 / 255, 232 / 255, 1);
     gl.disable(gl.BLEND);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
@@ -245,11 +266,75 @@ export default class GlobeRenderer implements GlobeHandle {
     this.graphics = null;
   }
 
-  private async uploadTexture(blob: Blob): Promise<void> {
+  private queueMap(source: MapSource): void {
+    if (this.destroyed || (this.activeMap?.detail && !source.detail)) return;
+    if (!this.pendingMap || source.detail || !this.pendingMap.detail)
+      this.pendingMap = source;
+    void this.uploadMaps();
+  }
+
+  private async uploadMaps(): Promise<void> {
+    if (
+      this.uploading ||
+      this.contextLost ||
+      !this.graphics ||
+      this.destroyed ||
+      this.gl?.isContextLost()
+    )
+      return;
+    this.uploading = true;
+    try {
+      while (
+        this.pendingMap &&
+        !this.contextLost &&
+        !this.destroyed &&
+        this.graphics &&
+        !this.gl?.isContextLost()
+      ) {
+        const source = this.pendingMap;
+        const graphics = this.graphics;
+        try {
+          if (!(await this.uploadTexture(source, graphics))) break;
+          if (this.pendingMap === source) this.pendingMap = null;
+        } catch {
+          if (this.pendingMap === source) this.pendingMap = null;
+          if (this.abort.signal.aborted) break;
+          if (source.detail && this.activeMap && !this.activeMap.detail) {
+            if (!this.imageLoaded) this.pendingMap = this.activeMap;
+            else
+              this.report(
+                'ready',
+                'El detalle adicional no está disponible. Se mantiene el mapa base.',
+              );
+          } else {
+            this.report(
+              'error',
+              'No se pudo cargar el mapa. Puedes volver a intentarlo.',
+            );
+          }
+        }
+      }
+    } finally {
+      this.uploading = false;
+      // A restored context may have replaced the one captured during decode.
+      if (
+        this.pendingMap &&
+        !this.contextLost &&
+        !this.destroyed &&
+        this.graphics &&
+        !this.gl?.isContextLost()
+      )
+        void this.uploadMaps();
+    }
+  }
+
+  private async uploadTexture(
+    source: MapSource,
+    graphics: Graphics,
+  ): Promise<boolean> {
     const gl = this.gl;
-    const graphics = this.graphics;
-    if (!gl || !graphics || this.contextLost) return;
-    const bitmap = await createImageBitmap(blob, {
+    if (!gl || this.contextLost) return false;
+    const bitmap = await createImageBitmap(source.blob, {
       imageOrientation: 'none',
       premultiplyAlpha: 'none',
       colorSpaceConversion: 'none',
@@ -260,15 +345,53 @@ export default class GlobeRenderer implements GlobeHandle {
         this.graphics !== graphics ||
         gl.isContextLost()
       )
-        return;
-      gl.bindTexture(gl.TEXTURE_2D, graphics.texture);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, gl.RG, gl.UNSIGNED_BYTE, bitmap);
-      gl.generateMipmap(gl.TEXTURE_2D);
-      if (gl.isContextLost()) return;
-      if (gl.getError() !== gl.NO_ERROR)
-        throw new Error('No se pudo cargar la textura en la GPU.');
+        return false;
+      const limit = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
+      if (
+        bitmap.width > limit ||
+        bitmap.height > limit ||
+        bitmap.width * bitmap.height > 8_388_608
+      )
+        throw new Error('Mapa demasiado grande para este dispositivo.');
+      const texture = gl.createTexture();
+      if (!texture) throw new Error('No se pudo crear la textura.');
+      try {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(
+          gl.TEXTURE_2D,
+          gl.TEXTURE_MIN_FILTER,
+          gl.LINEAR_MIPMAP_LINEAR,
+        );
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGB8,
+          gl.RGB,
+          gl.UNSIGNED_BYTE,
+          bitmap,
+        );
+        gl.generateMipmap(gl.TEXTURE_2D);
+        if (gl.isContextLost()) return false;
+        if (gl.getError() !== gl.NO_ERROR)
+          throw new Error('No se pudo cargar la textura en la GPU.');
+        const previous = graphics.texture;
+        graphics.texture = texture;
+        if (previous) gl.deleteTexture(previous);
+      } finally {
+        if (graphics.texture !== texture) {
+          gl.deleteTexture(texture);
+          gl.bindTexture(gl.TEXTURE_2D, graphics.texture);
+        }
+      }
+      this.activeMap = source;
+      this.host.dataset.mapDetail = source.detail ? 'detail' : 'base';
       this.imageLoaded = true;
       this.invalidate();
+      return true;
     } finally {
       // Keep only the compressed PNG for recovery, not the decoded bitmap.
       bitmap.close();
@@ -278,14 +401,13 @@ export default class GlobeRenderer implements GlobeHandle {
   private async loadTexture(): Promise<void> {
     try {
       const response = await fetch(
-        `${import.meta.env.BASE_URL}maps/atlas-map.png`,
+        `${import.meta.env.BASE_URL}maps/atlas-map.png?v=3`,
         { signal: this.abort.signal },
       );
       if (!response.ok) throw new Error('Imagen no disponible.');
       const blob = await response.blob();
       if (this.abort.signal.aborted) return;
-      this.textureBlob = blob;
-      await this.uploadTexture(blob);
+      this.queueMap({ blob, detail: false });
     } catch {
       if (!this.abort.signal.aborted)
         this.report(
@@ -293,6 +415,32 @@ export default class GlobeRenderer implements GlobeHandle {
           'No se pudo cargar la imagen de la Tierra. Puedes volver a intentarlo.',
         );
     }
+  }
+
+  private loadDetail(): void {
+    if (
+      !this.ready ||
+      !this.cameraTouched ||
+      this.orbit.range > DETAIL_RANGE ||
+      this.detailRequested
+    )
+      return;
+    this.detailRequested = true;
+    void fetch(`${import.meta.env.BASE_URL}maps/atlas-map-detail.png`, {
+      signal: this.abort.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Detalle no disponible.');
+        const blob = await response.blob();
+        if (!this.abort.signal.aborted) this.queueMap({ blob, detail: true });
+      })
+      .catch(() => {
+        if (!this.abort.signal.aborted && !this.contextLost && this.ready)
+          this.report(
+            'ready',
+            'El detalle adicional no está disponible. Se mantiene el mapa base.',
+          );
+      });
   }
 
   private installEvents(): void {
@@ -420,16 +568,8 @@ export default class GlobeRenderer implements GlobeHandle {
         this.contextLost = false;
         this.createGraphics();
         this.resize();
-        if (this.textureBlob) {
-          const graphics = this.graphics;
-          void this.uploadTexture(this.textureBlob).catch(() => {
-            if (!this.destroyed && this.graphics === graphics)
-              this.report(
-                'error',
-                'No se pudo recuperar la textura. Puedes volver a intentarlo.',
-              );
-          });
-        }
+        if (this.activeMap) this.queueMap(this.activeMap);
+        else void this.uploadMaps();
       } catch {
         this.releaseGraphics();
         this.report(
@@ -484,13 +624,21 @@ export default class GlobeRenderer implements GlobeHandle {
       0.000001,
       MAX_RANGE + 4,
     );
-    if (!this.cameraTouched)
-      this.orbit.range = homeRange(this.cssWidth / this.cssHeight);
+    if (!this.cameraTouched) {
+      const range = homeRange(this.cssWidth / this.cssHeight);
+      if (this.transition) this.transition.target.range = range;
+      else
+        this.orbit.range =
+          range *
+          (this.entrancePending && !this.options.reducedMotion ? 1.055 : 1);
+    }
     this.describe();
     this.invalidate();
   }
 
   private interact(): void {
+    this.transition = null;
+    this.entrancePending = false;
     this.cameraTouched = true;
     this.options.autoRotate = false;
     this.options.onInteraction();
@@ -500,6 +648,7 @@ export default class GlobeRenderer implements GlobeHandle {
     this.orbit.longitude = wrapLongitude(this.orbit.longitude);
     this.describe();
     this.invalidate();
+    this.loadDetail();
   }
 
   private describe(): void {
@@ -540,22 +689,53 @@ export default class GlobeRenderer implements GlobeHandle {
       document.hidden
     )
       return;
+    const animating = this.transition !== null;
     const rotating =
-      this.ready && this.options.autoRotate && !this.options.reducedMotion;
+      this.ready &&
+      this.options.autoRotate &&
+      !this.options.reducedMotion &&
+      !animating;
     // Auto rotation is slow. Keep interactive frames immediate and limit only
     // automatic frames, allowing a small tolerance for 60/120 Hz RAF jitter.
     if (
       !this.dirty &&
+      !animating &&
       (!rotating || time - this.lastFrame < AUTO_FRAME_INTERVAL - 2)
     ) {
       if (rotating) this.scheduleFrame();
       return;
     }
     this.dirty = false;
+    if (this.transition) {
+      const transition = this.transition;
+      if (!transition.started) transition.started = time;
+      const progress = clamp(
+        (time - transition.started) / transition.duration,
+        0,
+        1,
+      );
+      const remaining = 1 - progress;
+      const ease = 1 - remaining * remaining * remaining;
+      this.orbit.longitude = wrapLongitude(
+        transition.longitude +
+          wrapLongitude(transition.target.longitude - transition.longitude) *
+            ease,
+      );
+      this.orbit.latitude =
+        transition.latitude +
+        (transition.target.latitude - transition.latitude) * ease;
+      this.orbit.range =
+        transition.range + (transition.target.range - transition.range) * ease;
+      this.orbit.tilt =
+        transition.tilt + (transition.target.tilt - transition.tilt) * ease;
+      if (progress === 1) this.transition = null;
+      this.describe();
+      this.loadDetail();
+    }
     if (rotating && this.lastFrame)
       this.orbit.longitude = wrapLongitude(
         this.orbit.longitude +
-          Math.min((time - this.lastFrame) / 1_000, 0.1) * 0.65,
+          Math.min((time - this.lastFrame) / 1_000, 0.1) * 0.3,
       );
     this.lastFrame = time;
     try {
@@ -570,6 +750,20 @@ export default class GlobeRenderer implements GlobeHandle {
       if (this.imageLoaded && !this.ready) {
         this.ready = true;
         this.report('ready');
+        if (this.entrancePending) {
+          this.entrancePending = false;
+          if (!this.options.reducedMotion)
+            this.moveTo(
+              {
+                longitude: HOME_LONGITUDE,
+                latitude: HOME_LATITUDE,
+                range: homeRange(this.cssWidth / this.cssHeight),
+                tilt: 0,
+              },
+              1_100,
+            );
+        }
+        this.loadDetail();
       }
     } catch {
       this.ready = false;
@@ -579,8 +773,33 @@ export default class GlobeRenderer implements GlobeHandle {
       );
       return;
     }
-    if (this.ready && this.options.autoRotate && !this.options.reducedMotion)
+    if (
+      this.transition ||
+      (this.ready && this.options.autoRotate && !this.options.reducedMotion)
+    )
       this.scheduleFrame();
+  }
+
+  private moveTo(target: Orbit, duration = 850): void {
+    if (this.options.reducedMotion) {
+      this.orbit.longitude = target.longitude;
+      this.orbit.latitude = target.latitude;
+      this.orbit.range = target.range;
+      this.orbit.tilt = target.tilt;
+      this.transition = null;
+      this.changed();
+      return;
+    }
+    this.transition = {
+      longitude: this.orbit.longitude,
+      latitude: this.orbit.latitude,
+      range: this.orbit.range,
+      tilt: this.orbit.tilt,
+      target,
+      started: 0,
+      duration,
+    };
+    this.invalidate();
   }
 
   private draw(): void {
@@ -602,13 +821,27 @@ export default class GlobeRenderer implements GlobeHandle {
   home(): void {
     this.interact();
     this.cameraTouched = false;
-    this.orbit = {
-      longitude: -15,
-      latitude: 25,
+    this.moveTo({
+      longitude: HOME_LONGITUDE,
+      latitude: HOME_LATITUDE,
       range: homeRange(this.cssWidth / this.cssHeight),
       tilt: 0,
-    };
-    this.changed();
+    });
+  }
+  goTo(longitude: number, latitude: number, range = 0.48): void {
+    if (
+      !Number.isFinite(longitude) ||
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(range)
+    )
+      return;
+    this.interact();
+    this.moveTo({
+      longitude: wrapLongitude(longitude),
+      latitude: clamp(latitude, -85, 85),
+      range: clamp(range, MIN_RANGE, MAX_RANGE),
+      tilt: 0,
+    });
   }
   zoomIn(): void {
     this.interact();
@@ -647,8 +880,18 @@ export default class GlobeRenderer implements GlobeHandle {
       this.gl!.uniform1i(this.graphics.bordersUniform, Number(value));
     this.invalidate();
   }
+  setDemoVisible(value: boolean): void {
+    this.options.demoVisible = value;
+    if (this.graphics && !this.contextLost)
+      this.gl!.uniform1i(this.graphics.demoUniform, Number(value));
+    this.invalidate();
+  }
   setReducedMotion(value: boolean): void {
     this.options.reducedMotion = value;
+    if (value) {
+      this.entrancePending = false;
+      if (this.transition) this.moveTo(this.transition.target);
+    }
     this.lastFrame = 0;
     this.invalidate();
   }
@@ -661,7 +904,8 @@ export default class GlobeRenderer implements GlobeHandle {
     for (const cleanup of this.cleanup.splice(0)) cleanup();
     this.pointers.clear();
     this.releaseGraphics();
-    this.textureBlob = null;
+    this.activeMap = null;
+    this.pendingMap = null;
     this.gl?.getExtension('WEBGL_lose_context')?.loseContext();
     this.canvas.remove();
   }

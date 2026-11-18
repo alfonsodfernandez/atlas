@@ -1,175 +1,138 @@
-// Keep interface copy together so another locale can be added without changing UI.
 export const texts = {
   es: {
+    brand: 'Atlas, volver al globo',
+    pageTitle: 'Atlas · Explorador del mundo',
     skip: 'Saltar al globo',
-    brand: 'Atlas, inicio',
-    tagline: 'CADA LUGAR, UNA HISTORIA',
-    project: 'El proyecto',
-    navigationLabel: 'Navegación principal',
-    layersLabel: 'Capas del globo',
-    cameraControlsLabel: 'Controles de cámara',
-    attributionsLabel: 'Fuente de la cartografía',
-    cartographyCredit: 'Natural Earth',
-    cartographyNote: 'Fronteras simplificadas',
-    phasesLabel: 'Fases del proyecto',
-    privacy: 'Privacidad',
-    accessible: 'Vista accesible',
-    help: 'Cómo explorar',
-    eyebrow: 'UN MUNDO POR RECORRER',
-    title: ['El mundo,', 'tu historia.'],
-    intro: 'Gira el globo y acércate para explorar sus fronteras.',
-    emptyDescription: 'Todavía no hay viajes cargados.',
     globeLabel: 'Globo terráqueo 3D',
     globeInstructions:
-      'Globo con fronteras simplificadas. Arrastra para girar. Usa la rueda o un pellizco para acercarte. Pulsa Tab para acceder a los controles.',
+      'Arrastra para girar, usa la rueda o un pellizco para acercarte. Con el globo enfocado, las flechas giran la vista, + y − cambian la distancia e Inicio vuelve al principio. Tab permite salir del globo.',
+    controlsLabel: 'Controles del globo',
     home: 'Vista inicial',
     zoomIn: 'Acercar',
     zoomOut: 'Alejar',
     tilt: 'Cambiar inclinación',
     rotation: 'Rotación automática',
     borders: 'Fronteras',
-    reducedMotion:
-      'La rotación está pausada por tu preferencia de movimiento reducido.',
-    status: {
-      loading: 'Preparando el planeta…',
-      ready: 'Listo para explorar',
-      error: 'No se ha podido mostrar el globo',
-    },
-    fallback: {
-      title: 'El mundo sigue aquí.',
-      description:
-        'El globo no está disponible en este momento. Vuelve a intentarlo; si tu navegador no ofrece aceleración gráfica, puedes seguir con la vista accesible.',
-      retry: 'Volver a intentar',
-    },
+    help: 'Ayuda',
+    privacy: 'Privacidad',
+    accessible: 'Vista accesible',
     close: 'Cerrar ventana',
-    understood: 'Entendido',
-    privacyDialog: {
-      eyebrow: 'TU HISTORIA TE PERTENECE',
-      title: 'Explorar sin exponerte.',
+    back: 'Volver a Ayuda',
+    retry: 'Volver a intentar',
+    reducedMotion: 'Rotación pausada por tu preferencia de movimiento reducido',
+    tooltips: {
+      home: 'Volver a la vista inicial · Inicio',
+      zoomIn: 'Acercar · +',
+      zoomOut: 'Alejar · −',
+      tilt: 'Cambiar inclinación',
+      pauseRotation: 'Pausar rotación',
+      playRotation: 'Activar rotación',
+      hideBorders: 'Ocultar fronteras',
+      showBorders: 'Mostrar fronteras',
+      help: 'Ayuda y privacidad',
+      demo: 'Explorar los tres países de ejemplo',
+    },
+    keyboardHint: 'Flechas para girar · + / − para acercar',
+    attributionsLabel: 'Fuente de la cartografía',
+    cartographyCredit: 'Natural Earth',
+    cartographyNote: 'Cartografía simplificada',
+    status: {
+      loading: 'Preparando el globo',
+      ready: 'Globo listo para explorar',
+      error: 'El globo no está disponible',
+    },
+    error: {
+      title: 'No se ha podido abrir el globo.',
+      description: 'Vuelve a intentarlo o consulta la vista accesible.',
+    },
+    demoTrigger: '3 países · Ejemplo',
+    demo: {
+      title: 'Un ejemplo de Atlas',
       intro:
-        'La privacidad forma parte de los cimientos de Atlas. Esta fase todavía no permite importar datos ni muestra ubicaciones personales.',
-      items: [
+        'España, México y Japón para probar el mapa. Son datos de ejemplo, no un historial personal.',
+      toggle: 'Mostrar ejemplo',
+      toggleDescription: 'Colorea estos tres países en el globo.',
+      selected: 'Ejemplo seleccionado',
+      jumpPrefix: 'Ver',
+      countries: [
         {
-          title: 'El original se queda contigo',
-          description:
-            'El futuro pipeline procesará tu exportación en tu ordenador. Nunca subas un archivo original de Timeline al repositorio.',
+          code: 'ES',
+          name: 'España',
+          region: 'Europa',
+          longitude: -3.7,
+          latitude: 40.4,
         },
         {
-          title: 'Solo se compartirá lo que elijas',
-          description:
-            'La salida estará agrupada por ciudad, sin horas exactas y con zonas de exclusión para casa, trabajo y otros lugares sensibles.',
+          code: 'MX',
+          name: 'México',
+          region: 'América',
+          longitude: -102,
+          latitude: 23.6,
         },
         {
-          title: 'Una primera barrera ya está activa',
-          description:
-            'Git ignora los archivos privados y un control de pre-commit y CI busca formatos crudos. El saneado de ubicaciones llegará en la fase 2.',
+          code: 'JP',
+          name: 'Japón',
+          region: 'Asia',
+          longitude: 138,
+          latitude: 36,
         },
       ],
     },
-    projectDialog: {
-      eyebrow: 'UN PLANETA DE HISTORIAS',
-      title: 'Estamos construyendo Atlas.',
-      intro:
-        'Un atlas personal de viajes, con la Tierra como lienzo y la privacidad como punto de partida. Selecciona una fase para conocer el camino.',
-      ready: 'Completada',
-      current: 'Fase actual',
-      future: 'Por construir',
-    },
-    phases: [
-      {
-        title: 'Andamiaje',
-        subtitle: 'Una base sólida',
-        description:
-          'Monorepo, TypeScript estricto, herramientas de calidad, pruebas y controles para impedir que el historial crudo llegue al repositorio.',
-      },
-      {
-        title: 'Globo',
-        subtitle: 'El planeta cobra vida',
-        description:
-          'Un globo con fronteras simplificadas de Natural Earth, una superficie neutra y controles de cámara.',
-      },
-      {
-        title: 'Datos',
-        subtitle: 'Tu historia, en local',
-        description:
-          'Investigar los formatos actuales de Timeline, crear los parsers, enriquecer ubicaciones sin conexión y generar un JSON agregado con zonas de exclusión.',
-      },
-      {
-        title: 'Visualización',
-        subtitle: 'Cada viaje toma forma',
-        description:
-          'Lugares, ciudades, arcos de vuelo, estadísticas y paneles de detalle. El desarrollo usará únicamente datos sintéticos.',
-      },
-      {
-        title: 'Tiempo y viajes',
-        subtitle: 'Volver a recorrerlo',
-        description:
-          'Una línea de tiempo, reproducción de viajes, recorridos de cámara, filtros, búsqueda y enlaces a vistas concretas.',
-      },
-      {
-        title: 'Carga local',
-        subtitle: 'Tus datos, tu control',
-        description:
-          'Importar JSON o ZIP en el navegador, procesarlo en un Web Worker y descargar el resultado saneado. Sin enviar el historial a un servidor.',
-      },
-      {
-        title: 'Extras',
-        subtitle: 'Historias para compartir',
-        description:
-          'Gráficos, logros, una tarjeta para compartir, mapa de calor y fotografías opcionales por viaje.',
-      },
-      {
-        title: 'Pulido',
-        subtitle: 'Listo para explorar',
-        description:
-          'Rendimiento móvil, accesibilidad, interfaz en inglés y pruebas completas. Una guía final explicará cómo exportar y cargar tus datos.',
-      },
-    ],
     helpDialog: {
-      eyebrow: 'ENCUENTRA OTRA PERSPECTIVA',
-      title: 'El mundo está en tus manos.',
+      title: 'Cómo explorar',
       intro:
-        'Todos los movimientos tienen un control en pantalla. La rotación es opcional y se detiene al interactuar con el globo.',
+        'El globo se mueve despacio y se detiene al tocarlo. Puedes reanudar la rotación con su botón.',
       items: [
         {
           title: 'Ratón',
           description:
-            'Arrastra para girar, usa la rueda para acercarte y arrastra con el botón central para inclinar la cámara.',
+            'Arrastra para girar y usa la rueda para acercarte. El botón central permite inclinar la vista.',
         },
         {
           title: 'Pantalla táctil',
           description:
-            'Arrastra con un dedo para girar. Pellizca para acercarte y arrastra con dos dedos para inclinar.',
+            'Gira con un dedo. Pellizca para acercarte o arrastra con dos dedos para inclinar.',
         },
         {
           title: 'Teclado',
           description:
-            'Con el globo enfocado, las flechas giran la vista, + y − controlan la distancia e Inicio vuelve a la vista inicial. Tab permite salir del globo.',
+            'Enfoca el globo y usa las flechas, + y −. Inicio recupera la vista inicial. Tab te lleva a los controles.',
+        },
+      ],
+    },
+    privacyDialog: {
+      title: 'Tu historial se queda contigo',
+      intro:
+        'Esta versión solo muestra tres países de ejemplo. No contiene ubicaciones personales ni permite importar un historial.',
+      items: [
+        {
+          title: 'Datos de ejemplo',
+          description:
+            'España, México y Japón sirven para explorar la interfaz; no representan los viajes de ninguna persona.',
+        },
+        {
+          title: 'La futura importación será local',
+          description:
+            'El historial original de Timeline se procesará en tu ordenador. Solo se publicarán datos agregados, con zonas de exclusión y sin horas exactas.',
         },
       ],
     },
     accessibleDialog: {
-      eyebrow: 'OTRA FORMA DE EXPLORAR',
-      title: 'Atlas, sin barreras.',
+      title: 'Otra forma de explorar',
       intro:
-        'Este globo muestra las fronteras de Natural Earth, simplificadas para su visualización. Todavía no hay viajes cargados ni estadísticas personales.',
-      explorerLabel: 'Explorador',
-      cartographyLabel: 'Representación',
-      cartographyDescription: 'Globo con fronteras simplificadas',
+        'Un globo con costas y fronteras simplificadas de Natural Earth. El ejemplo permite recorrer España, México y Japón desde una lista.',
+      statusLabel: 'Explorador',
       bordersLabel: 'Fronteras',
       bordersVisible: 'Visibles',
       bordersHidden: 'Ocultas',
-      dataLabel: 'Datos personales',
-      noData: 'No se ha cargado ningún historial',
-      controls: 'Controles del explorador',
-      controlsDescription:
-        'Los botones permiten acercar, alejar, cambiar la inclinación y volver al inicio. Las fronteras se muestran al abrir el visor y puedes ocultarlas. La rotación solo se activa si la eliges.',
-      next: 'Lo que llegará después',
-      nextDescription:
-        'Cuando exista el historial agregado, aquí podrás recorrer tus lugares y viajes como una lista, sin depender del globo.',
-      projectAction: 'Ver la hoja de ruta',
+      demoLabel: 'Datos mostrados',
+      demoVisible: 'Tres países de ejemplo',
+      demoHidden: 'Ejemplo oculto',
+      motionLabel: 'Movimiento',
+      motionActive: 'Rotación suave activada',
+      motionPaused: 'Rotación pausada',
+      openDemo: 'Abrir países de ejemplo',
     },
   },
 } as const;
-
 export const copy = texts.es;
