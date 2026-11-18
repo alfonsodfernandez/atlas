@@ -4,15 +4,20 @@ Un atlas personal para recorrer, en un globo terráqueo 3D, los lugares que has
 visitado. El proyecto se construye por fases a partir de exportaciones de Google
 Maps Timeline, con el tratamiento de datos en tu propio ordenador.
 
-ATLAS muestra un globo político sencillo con WebGL 2, TypeScript y CSS. Los
-continentes y las fronteras proceden de Natural Earth a escala mundial. El mapa
-usa tonos neutros y trazos simples. La importación de Timeline y los datos de
-viajes llegarán en fases posteriores.
+El globo es la escena principal de ATLAS. La interfaz nativa en TypeScript y CSS
+agrupa los controles alrededor de una Tierra dibujada con WebGL 2. La cartografía
+usa colores planos y fronteras simplificadas de Natural Earth.
+
+**Modo de ejemplo:** España (`ESP`), México (`MEX`) y Japón (`JPN`) son tres
+países ficticios de demostración. La importación de Timeline y el tratamiento
+del historial personal siguen pendientes de las fases de datos.
 
 La hoja de ruta y las instrucciones de desarrollo están en [PLAN.md](PLAN.md)
 y [AGENTS.md](AGENTS.md).
 
-![Globo en escala de grises con fronteras simplificadas](docs/images/globo-cartografico.png)
+![ATLAS con el globo centrado y España resaltada en el modo de ejemplo](docs/images/globo-atlas.png)
+
+[Vista móvil](docs/images/globo-atlas-movil.png).
 
 ## Arrancar en local
 
@@ -49,35 +54,48 @@ y revisión de origen en [docs/performance/](docs/performance/).
 ## Explorar el globo
 
 Arrastra para girar la Tierra y usa la rueda o los controles de zoom para
-acercarte. En móvil puedes usar los gestos táctiles. La interfaz permite volver
-a la vista inicial, inclinar la cámara y activar o desactivar las fronteras.
+acercarte. En móvil puedes usar los gestos táctiles. Los controles permiten
+volver a la vista inicial, cambiar la inclinación y activar o desactivar las
+fronteras.
 
-El área del globo también se puede enfocar con Tab: las flechas mueven la cámara,
-`+` y `−` controlan el zoom, y `Home` recupera la vista inicial. Puedes activar
-la rotación con su botón. Se detiene al interactuar y respeta la preferencia de
-movimiento reducido. La ayuda, la privacidad y la hoja de ruta se pueden
-consultar con teclado. Si el
-navegador no puede mostrar WebGL, queda disponible una vista accesible y la
-opción de reintentar.
+La cabecera identifica el modo **«3 países · Ejemplo»**. En el panel de ejemplo,
+los botones **Ver España**, **Ver México** y **Ver Japón** centran la cámara en
+cada país. **Mostrar ejemplo** activa o desactiva los colores de esta
+demostración. Ese control no importa ni modifica un historial personal.
 
-El motor proyecta una máscara cartográfica local sobre el globo. Sus costas y
-límites políticos son aproximados, procedentes del conjunto Natural Earth
-1:110m fijado en el repositorio. La máscara solo sirve para dibujar; no debe
-usarse para determinar el país de una visita junto a una frontera o en el mar.
+Puedes enfocar el globo con Tab: las flechas mueven la cámara, `+` y `−` controlan
+el zoom, y `Home` recupera la vista inicial. La rotación lenta se detiene al
+interactuar y respeta `prefers-reduced-motion`. Desde **Ayuda** se accede a las
+instrucciones, la privacidad y la alternativa accesible. Si WebGL no está
+disponible, la información y el reintento siguen siendo accesibles.
+
+La primera vista carga una máscara local de 1024 × 512 píxeles derivada de
+Natural Earth 1:110m (18.277 bytes). Al acercarte, el visor puede cargar una
+máscara adicional de 2048 × 1024 procedente de la fuente 1:50m (51.920 bytes)
+para definir mejor costas y límites.
+Los polígonos se procesan al generar los recursos; el navegador utiliza los PNG.
 [Procedencia, licencia y generación](docs/cartografia.md).
+
+Estas máscaras son para visualización. No prometen precisión topológica ni
+sirven para decidir el país de una visita junto a una frontera o en el mar.
+Las 177 y 242 entidades de las fuentes cartográficas son distintas de los tres
+países ficticios del ejemplo.
 
 ## Rendimiento
 
-La escena del globo se resuelve en una llamada WebGL por fotograma. La máscara
-de tierra y fronteras se genera de antemano y se distribuye como un PNG local.
-El navegador no descarga ni procesa los polígonos de Natural Earth durante la
-navegación. La geometría y los recursos de GPU se reutilizan y la escena se
-dibuja cuando cambia; la animación se pausa cuando el visor no está visible.
+El globo mantiene una pasada WebGL por fotograma y reutiliza la geometría y los
+recursos de GPU. Las máscaras de tierra, fronteras y ejemplo se generan de
+antemano. La carga inicial utiliza el recurso ligero; el detalle adicional se
+solicita al hacer zoom, en lugar de precargarlo para la primera vista.
 
-El build controla presupuestos de **40 KiB de JavaScript sin comprimir, 15 KiB
-con gzip y 44 KiB para la estimación conjunta de JS/CSS con gzip y el mapa**.
-La descarga inicial estimada de esta revisión es de **32.757 bytes**.
-[Informes y método de comparación](docs/performance/README.md).
+La escena se dibuja cuando cambia o mientras está activa la rotación. La
+animación se pausa cuando el visor no está visible y se respetan las preferencias
+de movimiento reducido. Los controles y paneles usan el DOM nativo.
+
+La primera vista descarga unos **33 KB** de recursos según la estimación de
+compilación. `npm run build` comprueba los límites de 40 KiB de JavaScript
+bruto, 15 KiB de JavaScript con gzip, 44 KiB de carga inicial y 64 KiB para
+el mapa de detalle. [Mediciones y método](docs/performance/).
 
 ## Privacidad
 
@@ -140,7 +158,7 @@ scripts/                  Calidad, generación de mapas y mediciones
 data/sample/              Futuro dataset sintético
 data/raw/                 Exportaciones locales, ignoradas por Git
 public/data/              Futura salida agregada y saneada
-public/maps/              Máscara cartográfica local para dibujar el globo
+public/maps/              Máscaras cartográficas inicial y de detalle local
 docs/performance/         Informes de tamaño y arranque
 .github/workflows/        CI y publicación
 ```
@@ -152,9 +170,10 @@ node scripts/prepare-map.mjs
 node scripts/prepare-map.mjs --check
 ```
 
-La compilación usa `public/maps/atlas-map.png`. Los polígonos fuente se guardan
-bajo `scripts/geo/` y quedan fuera del sitio publicado. La generación utiliza
-la fuente local fijada y no necesita descargarla de nuevo.
+El generador prepara `public/maps/atlas-map.png` y
+`public/maps/atlas-map-detail.png`. Los polígonos fuente se guardan bajo
+`scripts/geo/` y quedan fuera del sitio publicado. La generación utiliza las
+fuentes locales fijadas y no necesita descargarlas de nuevo.
 
 ## Desplegar
 

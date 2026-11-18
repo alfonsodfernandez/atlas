@@ -2,14 +2,18 @@
 
 ## Alcance y decisión vigente
 
-Lee `PLAN.md` antes de modificar el proyecto. El visor está en la Fase 1.
-La decisión vigente del usuario es un globo político sencillo con costas y
-fronteras aproximadas de Natural Earth 1:110m, colores planos y una sola llamada
-WebGL por fotograma. Mantén el renderizador propio y la interfaz TypeScript/CSS.
-Esta revisión sustituye los continentes dibujados a mano de la versión anterior.
+Lee `PLAN.md` antes de modificar el proyecto. El hito actual es el rediseño de
+la Fase 1 con el globo como escena principal. Mantén el motor WebGL 2 propio, la
+interfaz TypeScript/CSS y los controles nativos, con cartografía simplificada de
+Natural Earth y carga progresiva de detalle al hacer zoom.
+
+El ejemplo visible utiliza exclusivamente España (`ESP`), México (`MEX`) y Japón
+(`JPN`) como datos ficticios. Mantén el aviso de ejemplo junto a sus cifras y
+paneles. No lo presentes como el historial de Alfonso ni completes por ello las
+fases de importación, saneado o estadísticas personales.
 
 Investiga los formatos actuales antes de implementar parsers de Timeline y
-distingue los datos sintéticos de un historial personal.
+mantén separados los ejemplos de UI y los futuros datos personales agregados.
 
 ## Arranque y comandos
 
@@ -28,8 +32,8 @@ distingue los datos sintéticos de un historial personal.
 - `npm run check:privacy`: ficheros versionados y nuevos no ignorados;
   `npm run check:privacy -- --staged`: blobs exactos del índice.
 - `ATLAS_BASE_PATH=/ npm run build`: build para la raíz de un dominio.
-- `node scripts/prepare-map.mjs [--check]`: genera la máscara cartográfica local
-  o comprueba que coincide con la versión guardada.
+- `node scripts/prepare-map.mjs [--check]`: genera las máscaras cartográficas
+  inicial y de detalle, o comprueba que coinciden con las versiones guardadas.
 
 El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 
@@ -42,7 +46,7 @@ El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 - `packages/geo/`: futura geocodificación offline.
 - `scripts/`: calidad, generación reproducible y mediciones.
 - `public/data/`: futura salida agregada y saneada.
-- `public/maps/`: solo el PNG cartográfico que necesita el visor.
+- `public/maps/`: máscara inicial y máscara de detalle que se carga bajo demanda.
 - `scripts/geo/`: fuente Natural Earth fijada; no se publica con la web.
 - `docs/cartografia.md`: procedencia, licencia y generación de la máscara.
 - UI y documentación en español; conserva los textos centralizados para i18n.
@@ -52,9 +56,13 @@ El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 - Dibuja al cambiar la escena. La rotación puede programar frames mientras está
   activa; suspéndelos si el documento o el visor dejan de estar visibles.
 - Respeta movimiento reducido y los límites de resolución del renderizador.
-- Mantén los presupuestos de esta revisión: 40 KiB de JS, 15 KiB con gzip y
-  44 KiB de estimación inicial para JS/CSS con gzip más el PNG cartográfico.
-  Registra las medidas obtenidas antes de dar esos objetivos por verificados.
+- Respeta los presupuestos de `scripts/check-bundle.mjs`: 40 KiB de JS bruto,
+  15 KiB de JS con gzip, 44 KiB de estimación inicial JS/CSS con gzip más el
+  mapa base y 64 KiB adicionales para el mapa de detalle. Registra los pesos
+  reales de la revisión. Separa la descarga inicial de la máscara de detalle;
+  un recurso de zoom diferido no debe contarse como una descarga inicial.
+- Conserva los informes anteriores como históricos. Un rediseño necesita sus
+  propias medidas de tamaño, arranque y respuesta de los controles.
 - Los informes de arranque comparan muestras frías por versión con SwiftShader.
   No los presentes como FPS ni como tiempos garantizados en hardware físico.
 - Vitest comprueba matemáticas, geometría, decodificación y privacidad.
@@ -94,18 +102,24 @@ resultado real del workflow y la web antes de afirmar que se ha publicado. Los
 
 ## Trampas conocidas
 
-- La Fase 1 no importa Timeline ni representa visitas personales.
+- La Fase 1 no importa Timeline. ESP/MEX/JPN son ejemplos ficticios de UI;
+  los contadores de la demostración no son estadísticas personales.
 - Las fronteras simplificadas son para visualización; no prometen precisión
   topológica o legal. La geocodificación futura usará geometrías adecuadas.
-- Conserva el crédito y la licencia de Natural Earth. Las 177 entidades de la
-  fuente 1:110m no equivalen a países visitados ni a un total de países del mundo.
-- La máscara utiliza el canal rojo para tierra y el verde para fronteras. Mantén
-  el contrato con `prepare-map.mjs` al subirla a la GPU; evita formatos que alteren
-  sus canales sin verificar el resultado.
-- El globo usa una sola pasada WebGL y un fondo neutro. Mantén la máscara
-  cartográfica y la simplificación fuera del trabajo de cada frame.
-- El PNG es un recurso de visualización generado; la fuente de Natural Earth
-  queda en `scripts/geo/` y no debe copiarse al directorio público.
+- Conserva el crédito y la licencia de Natural Earth. Las fuentes 1:110m y
+  1:50m tienen 177 y 242 entidades; no son países visitados ni el total mundial.
+- Las máscaras usan rojo para tierra, verde para fronteras y azul para la unión
+  de los tres países de ejemplo. El azul no es un identificador por país ni
+  proporciona una operación de geocodificación o selección exacta.
+- Mantén el mismo contrato de canales en la máscara inicial y la de detalle.
+  Evita formatos de textura que alteren los canales sin verificar el resultado.
+- El globo usa una sola pasada WebGL. Mantén la generación y simplificación
+  cartográfica fuera del trabajo de cada frame.
+- `atlas-map.png` es la máscara inicial 1024 × 512 de Natural Earth 1:110m.
+  `atlas-map-detail.png`, de 2048 × 1024 y Natural Earth 1:50m, se solicita al
+  acercarse. No la precargues antes de la primera vista por comodidad.
+- Los PNG son recursos de visualización generados; las fuentes de Natural Earth
+  quedan en `scripts/geo/` y no deben copiarse al directorio público.
 - Los eventos de pérdida/restauración de WebGL y el reintento deben liberar y
   reconstruir recursos; también aborta descargas pendientes al destruir el visor.
 - Los metadatos de cámara deben leer el estado real al ejecutar un comando,

@@ -1,0 +1,31 @@
+{
+  "javascript": [
+    {
+      "name": "index-CseI910X.js",
+      "bytes": 35103,
+      "gzipBytes": 12348
+    }
+  ],
+  "styles": [
+    {
+      "name": "index-B6fQtkLc.css",
+      "bytes": 9457,
+      "gzipBytes": 2822
+    }
+  ],
+  "javascriptBytes": 35103,
+  "javascriptGzipBytes": 12348,
+  "cssGzipBytes": 2822,
+  "maps": {
+    "atlas-map.png": 18277,
+    "atlas-map-detail.png": 51920
+  },
+  "detailMapBytes": 51920,
+  "initialPayloadGzipEstimateBytes": 33447,
+  "budgets": {
+    "javascriptBytes": 40960,
+    "javascriptGzipBytes": 15360,
+    "initialPayloadGzipEstimateBytes": 45056,
+    "detailMapBytes": 65536
+  }
+}

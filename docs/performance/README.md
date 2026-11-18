@@ -1,5 +1,35 @@
 # Rendimiento de ATLAS
 
+## Rediseño del globo
+
+La comparación del 18 de noviembre de 2026 toma como referencia `e07fe9e`.
+El rediseño conserva una llamada WebGL por fotograma y añade el mapa regional
+de Natural Earth 1:50m. La medición de arranque se hizo sin interactuar con
+el visor, antes de solicitar ese mapa adicional.
+
+| Medida                             | Globo cartográfico | Rediseño |
+| ---------------------------------- | -----------------: | -------: |
+| Descarga inicial estimada, bytes   |             32.757 |   33.447 |
+| Subrecursos decodificados, bytes   |             63.136 |   62.837 |
+| Subrecursos solicitados            |                  3 |        3 |
+| JavaScript con gzip, bytes         |             12.088 |   12.348 |
+| CSS con gzip, bytes                |              3.588 |    2.822 |
+| Mapa inicial, bytes                |             17.081 |   18.277 |
+| Mapa diferido al acercarse, bytes  |                  — |   51.920 |
+| Mediana hasta el primer dibujo, ms |                153 |      156 |
+
+La estimación inicial suma JavaScript y CSS con gzip más el mapa base. Excluye
+HTML y cabeceras. El build limita esa carga a 44 KiB y el mapa diferido a
+64 KiB. Las pruebas de navegador comprueban que el mapa diferido se pide una
+vez al acercarse. [Informe de compilación](globe-first-bundle.json).
+
+Se alternaron cinco arranques fríos por versión con Chromium, SwiftShader
+y servidor local, a 1280 × 850, densidad 1 y movimiento reducido. Los tiempos
+corresponden a estas muestras con GPU emulada. En una prueba aparte de dos
+segundos con movimiento normal se midieron 31 dibujos por segundo durante la
+entrada y el giro inicial del rediseño. La versión cartográfica anterior
+arrancaba quieta. [Todas las muestras](globe-first-runtime.json).
+
 ## Globo cartográfico
 
 La comparación del 18 de noviembre de 2026 toma como referencia la Tierra
@@ -78,7 +108,7 @@ Con el servidor abierto, ejecuta este comando en otra terminal.
 npm run measure:runtime -- http://127.0.0.1:4173/atlas/ /tmp/atlas-runtime.json
 ```
 
-Para comparar, compila también `56776d9` en un checkout separado y usa el
+Para comparar, compila también `e07fe9e` en un checkout separado y usa el
 mismo script de medición con los dos builds. Alterna las versiones y ejecuta
 un solo navegador a la vez para reducir la competencia por CPU y GPU.
 

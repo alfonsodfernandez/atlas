@@ -7,6 +7,13 @@ const globeEngine = (page: Page) => page.getByTestId('atlas-globe');
 const globeStage = (page: Page) =>
   page.getByRole('region', { name: 'Globo terráqueo 3D', exact: true });
 
+interface CanvasFrameMetrics {
+  width: number;
+  height: number;
+  highlightedPixels: number;
+  bounds: { left: number; right: number; bottom: number; top: number };
+}
+
 async function waitForScene(page: Page) {
   await expect(globeEngine(page)).toHaveAttribute('data-draw-calls', '1');
 }
@@ -78,8 +85,12 @@ async function captureNextCanvasFrame(page: Page, action: () => Promise<void>) {
     const canvas = element.querySelector('canvas');
     const gl = canvas?.getContext('webgl2');
     if (!canvas || !gl) throw new Error('No se puede leer el fotograma WebGL.');
-    const target = window as Window & { atlasFrameHash?: number };
+    const target = window as Window & {
+      atlasFrameHash?: number;
+      atlasFrameMetrics?: CanvasFrameMetrics;
+    };
     delete target.atlasFrameHash;
+    delete target.atlasFrameMetrics;
     const observer = new MutationObserver(() => {
       // Context restoration can draw a placeholder before its map is uploaded.
       if (element.getAttribute('data-engine-state') !== 'ready') return;
@@ -94,9 +105,43 @@ async function captureNextCanvasFrame(page: Page, action: () => Promise<void>) {
         pixels,
       );
       let hash = 2_166_136_261;
-      for (let index = 0; index < pixels.length; index += 1) {
-        hash = Math.imul(hash ^ pixels[index]!, 16_777_619);
+      let highlightedPixels = 0;
+      const bounds = {
+        left: canvas.width,
+        right: -1,
+        bottom: canvas.height,
+        top: -1,
+      };
+      for (let index = 0; index < pixels.length; index += 4) {
+        const r = pixels[index]!;
+        const g = pixels[index + 1]!;
+        const b = pixels[index + 2]!;
+        if (r > g * 1.08 && g > b * 1.1) highlightedPixels += 1;
+        // The clear color at the corner distinguishes the actual sphere from canvas.
+        if (
+          Math.abs(r - pixels[0]!) +
+            Math.abs(g - pixels[1]!) +
+            Math.abs(b - pixels[2]!) >
+          15
+        ) {
+          const pixel = index / 4;
+          const x = pixel % canvas.width;
+          const y = Math.floor(pixel / canvas.width);
+          bounds.left = Math.min(bounds.left, x);
+          bounds.right = Math.max(bounds.right, x);
+          bounds.bottom = Math.min(bounds.bottom, y);
+          bounds.top = Math.max(bounds.top, y);
+        }
+        for (let channel = 0; channel < 4; channel += 1) {
+          hash = Math.imul(hash ^ pixels[index + channel]!, 16_777_619);
+        }
       }
+      target.atlasFrameMetrics = {
+        width: canvas.width,
+        height: canvas.height,
+        highlightedPixels,
+        bounds,
+      };
       target.atlasFrameHash = hash >>> 0;
       observer.disconnect();
     });
@@ -116,6 +161,16 @@ async function captureNextCanvasFrame(page: Page, action: () => Promise<void>) {
   return page.evaluate(
     () => (window as Window & { atlasFrameHash?: number }).atlasFrameHash,
   );
+}
+
+async function frameMetrics(page: Page) {
+  const metrics = await page.evaluate(
+    () =>
+      (window as Window & { atlasFrameMetrics?: CanvasFrameMetrics })
+        .atlasFrameMetrics,
+  );
+  if (!metrics) throw new Error('No se ha leído el fotograma WebGL.');
+  return metrics;
 }
 
 function observeRuntime(page: Page) {
@@ -179,13 +234,17 @@ async function cameraValue(page: Page, attribute: string) {
 
 test('el globo cartográfico carga su mapa y controles con una descarga pequeña', async ({
   page,
-}) => {
+}, testInfo) => {
+  if (testInfo.project.name.startsWith('mobile')) {
+    await page.setViewportSize({ width: 320, height: 700 });
+  }
   const assertRuntime = observeRuntime(page);
   await installPixelProbe(page);
   await page.goto('./');
-  await expect(page).toHaveTitle('ATLAS — Cada lugar, una historia');
+  await expect(page).toHaveTitle('ATLAS — Explora el mundo');
   await waitForGlobe(page);
   await waitForScene(page);
+  await expect(globeEngine(page)).toHaveAttribute('data-map-detail', 'base');
   const pixels = await page.evaluate(
     () => (window as Window & { atlasPixelProbe?: number[][] }).atlasPixelProbe,
   );
@@ -235,8 +294,8 @@ test('el globo cartográfico carga su mapa y controles con una descarga pequeña
   expect(
     resources.paths.filter((path) => path.startsWith('/atlas/maps/')),
   ).toEqual(['/atlas/maps/atlas-map.png']);
-  const credits = page.locator('footer.credits');
-  await expect(credits).toContainText('Fronteras simplificadas');
+  const credits = page.locator('.credits');
+  await expect(credits).toContainText('Cartografía simplificada');
   await expect(
     credits.getByRole('link', { name: 'Natural Earth', exact: true }),
   ).toBeVisible();
@@ -252,6 +311,16 @@ test('el globo cartográfico carga su mapa y controles con una descarga pequeña
   await expect
     .poll(() => cameraValue(page, 'data-camera-height'))
     .toBeGreaterThan(closerHeight);
+  const zoomButton = page.getByRole('button', { name: 'Acercar', exact: true });
+  await zoomButton.focus();
+  const tooltip = page.getByRole('tooltip');
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText('Acercar');
+  const tooltipBounds = await tooltip.boundingBox();
+  expect(tooltipBounds?.width).toBeLessThan(220);
+  expect(tooltipBounds?.height).toBeLessThan(90);
+  await page.keyboard.press('Escape');
+  await expect(tooltip).not.toBeVisible();
 
   const initialLongitude = await cameraValue(page, 'data-camera-longitude');
   await globeStage(page).focus();
@@ -273,25 +342,52 @@ test('el globo cartográfico carga su mapa y controles con una descarga pequeña
     .poll(() => cameraValue(page, 'data-camera-pitch'))
     .not.toBe(initialPitch);
 
-  const borders = page.getByRole('button', {
+  const borders = page.getByRole('switch', {
     name: 'Fronteras',
     exact: true,
   });
-  await expect(borders).toHaveAttribute('aria-pressed', 'true');
+  await expect(borders).toBeChecked();
   await expectIdleRenderer(page);
   const originalFrame = await captureNextCanvasFrame(page, () =>
     globeStage(page).press('Home'),
   );
+  const scene = await frameMetrics(page);
+  const shortSide = Math.min(scene.width, scene.height);
+  expect(scene.bounds.right - scene.bounds.left).toBeGreaterThan(
+    shortSide * 0.7,
+  );
+  expect(scene.bounds.top - scene.bounds.bottom).toBeGreaterThan(
+    shortSide * 0.7,
+  );
+  expect(
+    Math.abs((scene.bounds.left + scene.bounds.right) / 2 - scene.width / 2),
+  ).toBeLessThan(scene.width * 0.04);
+  expect(
+    Math.abs((scene.bounds.bottom + scene.bounds.top) / 2 - scene.height / 2),
+  ).toBeLessThan(scene.height * 0.04);
+  const visibleHeadings = await page.locator('main h1').evaluateAll(
+    (headings) =>
+      headings.filter((heading) => {
+        const bounds = heading.getBoundingClientRect();
+        return bounds.width > 2 && bounds.height > 2;
+      }).length,
+  );
+  expect(visibleHeadings).toBe(0);
+  const focusStyle = await globeStage(page).evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { outline: style.outlineStyle, shadow: style.boxShadow };
+  });
+  expect(focusStyle).toEqual({ outline: 'none', shadow: 'none' });
   const borderlessFrame = await captureNextCanvasFrame(page, () =>
     borders.click(),
   );
-  await expect(borders).toHaveAttribute('aria-pressed', 'false');
+  await expect(borders).not.toBeChecked();
   expect(borderlessFrame).not.toBe(originalFrame);
   await waitForScene(page);
   const restoredFrame = await captureNextCanvasFrame(page, () =>
     borders.click(),
   );
-  await expect(borders).toHaveAttribute('aria-pressed', 'true');
+  await expect(borders).toBeChecked();
   expect(restoredFrame).toBe(originalFrame);
   await waitForScene(page);
 
@@ -322,6 +418,91 @@ test('el globo cartográfico carga su mapa y controles con una descarga pequeña
   assertRuntime();
 });
 
+test('los tres países de ejemplo se pueden visitar y ocultar en el globo real', async ({
+  page,
+}) => {
+  const assertRuntime = observeRuntime(page);
+  const detailRequests: string[] = [];
+  page.on('request', (request) => {
+    if (
+      new URL(request.url()).pathname === '/atlas/maps/atlas-map-detail.png'
+    ) {
+      detailRequests.push(request.url());
+    }
+  });
+  await page.goto('./');
+  await waitForGlobe(page);
+  await expect(globeEngine(page)).toHaveAttribute('data-map-detail', 'base');
+  expect(detailRequests).toEqual([]);
+
+  const trigger = page.getByRole('button', {
+    name: '3 países · Ejemplo',
+    exact: true,
+  });
+  const dialog = page.getByRole('dialog', {
+    name: 'Un ejemplo de Atlas',
+    exact: true,
+  });
+  const borders = page.getByRole('switch', { name: 'Fronteras', exact: true });
+  let highlightedFrame: number | undefined;
+  for (const country of [
+    { name: 'España', longitude: [-10, 5], latitude: [35, 45] },
+    { name: 'México', longitude: [-120, -85], latitude: [15, 32] },
+    { name: 'Japón', longitude: [125, 150], latitude: [30, 46] },
+  ]) {
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+    await dialog
+      .getByRole('button', { name: `Ver ${country.name}`, exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    await expect(globeStage(page)).toBeFocused();
+    const longitude = await cameraValue(page, 'data-camera-longitude');
+    const latitude = await cameraValue(page, 'data-camera-latitude');
+    expect(longitude).toBeGreaterThan(country.longitude[0]!);
+    expect(longitude).toBeLessThan(country.longitude[1]!);
+    expect(latitude).toBeGreaterThan(country.latitude[0]!);
+    expect(latitude).toBeLessThan(country.latitude[1]!);
+    await expect(globeEngine(page)).toHaveAttribute(
+      'data-map-detail',
+      'detail',
+      {
+        timeout: 15_000,
+      },
+    );
+    await expectIdleRenderer(page);
+    await captureNextCanvasFrame(page, () => borders.click());
+    expect((await frameMetrics(page)).highlightedPixels).toBeGreaterThan(50);
+    highlightedFrame = await captureNextCanvasFrame(page, () =>
+      borders.click(),
+    );
+    await waitForScene(page);
+  }
+
+  await trigger.click();
+  const demoSwitch = dialog.getByRole('switch', {
+    name: 'Mostrar ejemplo',
+    exact: true,
+  });
+  await expect(demoSwitch).toBeChecked();
+  const hiddenFrame = await captureNextCanvasFrame(page, () =>
+    demoSwitch.click(),
+  );
+  await expect(demoSwitch).not.toBeChecked();
+  expect((await frameMetrics(page)).highlightedPixels).toBe(0);
+  expect(hiddenFrame).not.toBe(highlightedFrame);
+  const restoredFrame = await captureNextCanvasFrame(page, () =>
+    demoSwitch.click(),
+  );
+  await expect(demoSwitch).toBeChecked();
+  expect(restoredFrame).toBe(highlightedFrame);
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  expect(detailRequests).toHaveLength(1);
+  await expectIdleRenderer(page);
+  assertRuntime();
+});
+
 test('la interacción detiene la rotación automática', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('./');
@@ -332,9 +513,6 @@ test('la interacción detiene la rotación automática', async ({ page }) => {
     exact: true,
   });
   await expect(rotation).toBeEnabled();
-  await expect(rotation).toHaveAttribute('aria-pressed', 'false');
-  await expectIdleRenderer(page);
-  await rotation.click();
   await expect(rotation).toHaveAttribute('aria-pressed', 'true');
   const initialFrames = await frameCount(page);
   await expect.poll(() => frameCount(page)).toBeGreaterThan(initialFrames);
@@ -351,7 +529,22 @@ test('la interacción detiene la rotación automática', async ({ page }) => {
   await globeStage(page).focus();
   await page.keyboard.press('ArrowRight');
   await expect(rotation).toHaveAttribute('aria-pressed', 'false');
+  const manualLongitude = await cameraValue(page, 'data-camera-longitude');
   await expectIdleRenderer(page);
+  expect(await cameraValue(page, 'data-camera-longitude')).toBe(
+    manualLongitude,
+  );
+
+  await page
+    .getByRole('button', { name: '3 países · Ejemplo', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Ver Japón', exact: true }).click();
+  await globeStage(page).press('ArrowLeft');
+  const interruptedLongitude = await cameraValue(page, 'data-camera-longitude');
+  await expectIdleRenderer(page);
+  expect(await cameraValue(page, 'data-camera-longitude')).toBe(
+    interruptedLongitude,
+  );
 });
 
 test('el arrastre y el pellizco táctil mueven la cámara real', async ({
@@ -376,6 +569,7 @@ test('el arrastre y el pellizco táctil mueven la cámara real', async ({
   await expect(
     page.getByRole('button', { name: 'Rotación automática', exact: true }),
   ).toHaveAttribute('aria-pressed', 'false');
+  await expectIdleRenderer(page);
 
   if (testInfo.project.name.startsWith('mobile')) {
     const previousHeight = await cameraValue(page, 'data-camera-height');
@@ -412,13 +606,22 @@ test('el contexto WebGL se recupera conservando el mapa y los controles', async 
   const mapRequests: string[] = [];
   page.on('pageerror', (error) => uncaughtErrors.push(error.message));
   page.on('request', (request) => {
-    if (new URL(request.url()).pathname === '/atlas/maps/atlas-map.png') {
-      mapRequests.push(request.url());
+    const path = new URL(request.url()).pathname;
+    if (path.startsWith('/atlas/maps/')) {
+      mapRequests.push(path);
     }
   });
   await page.goto('./');
   await waitForGlobe(page);
   await waitForScene(page);
+  await expect(globeEngine(page)).toHaveAttribute('data-map-detail', 'base');
+  for (let step = 0; step < 12; step += 1) {
+    if ((await cameraValue(page, 'data-camera-height')) < 6_500_000) break;
+    await page.getByRole('button', { name: 'Acercar', exact: true }).click();
+  }
+  await expect(globeEngine(page)).toHaveAttribute('data-map-detail', 'detail', {
+    timeout: 15_000,
+  });
   await expectIdleRenderer(page);
   const canvas = globeEngine(page).locator('canvas');
   const originalCanvas = await canvas.elementHandle();
@@ -451,6 +654,7 @@ test('el contexto WebGL se recupera conservando el mapa y los controles', async 
   );
   await waitForGlobe(page);
   await waitForScene(page);
+  await expect(globeEngine(page)).toHaveAttribute('data-map-detail', 'detail');
   // The mobile status message changes layout; compare after its final resize.
   await expectIdleRenderer(page);
   const restoredFrame = await captureNextCanvasFrame(page, () =>
@@ -459,7 +663,10 @@ test('el contexto WebGL se recupera conservando el mapa y los controles', async 
   expect(restoredFrame).toBe(originalFrame);
   expect(await originalCanvas?.evaluate((node) => node.isConnected)).toBe(true);
   expect(await frameCount(page)).toBeGreaterThan(initialFrames);
-  expect(mapRequests).toHaveLength(1);
+  expect(mapRequests).toEqual([
+    '/atlas/maps/atlas-map.png',
+    '/atlas/maps/atlas-map-detail.png',
+  ]);
   await page.getByRole('button', { name: 'Acercar', exact: true }).click();
   await expectIdleRenderer(page);
   expect(uncaughtErrors).toEqual([]);
@@ -469,13 +676,18 @@ test('la privacidad conserva el foco al cerrar y reabrir rápidamente', async ({
   page,
 }) => {
   await page.goto('./');
-  const trigger = page.getByRole('button', { name: 'Privacidad', exact: true });
-  const dialog = page.getByRole('dialog', { name: 'Explorar sin exponerte.' });
+  const trigger = page.getByRole('button', { name: 'Ayuda', exact: true });
+  const dialog = page.getByRole('dialog', {
+    name: 'Tu historial se queda contigo',
+  });
 
   for (let cycle = 1; cycle <= 3; cycle += 1) {
     await test.step(`Abrir y cerrar con Escape, ciclo ${cycle}`, async () => {
       await trigger.focus();
       await page.keyboard.press('Enter');
+      await page
+        .getByRole('button', { name: 'Privacidad', exact: true })
+        .click();
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText('Timeline');
       await page.keyboard.press('Escape');
@@ -485,9 +697,12 @@ test('la privacidad conserva el foco al cerrar y reabrir rápidamente', async ({
 
     await test.step(`Reabrir y cerrar con el botón, ciclo ${cycle}`, async () => {
       await trigger.press('Enter');
+      await page
+        .getByRole('button', { name: 'Privacidad', exact: true })
+        .click();
       await expect(dialog).toBeVisible();
       await dialog
-        .getByRole('button', { name: 'Entendido', exact: true })
+        .getByRole('button', { name: 'Cerrar ventana', exact: true })
         .click();
       await expect(dialog).not.toBeVisible();
       await expect(trigger).toBeFocused();
@@ -495,32 +710,28 @@ test('la privacidad conserva el foco al cerrar y reabrir rápidamente', async ({
   }
 });
 
-test('la vista accesible y el proyecto se pueden consultar sin manipular el globo', async ({
+test('la ayuda y la vista accesible se pueden consultar sin manipular el globo', async ({
   page,
 }) => {
   await page.goto('./');
-  await page
-    .getByRole('navigation', { name: 'Navegación principal' })
+  const helpTrigger = page.getByRole('button', { name: 'Ayuda', exact: true });
+  await helpTrigger.click();
+  const help = page.getByRole('dialog', { name: 'Cómo explorar', exact: true });
+  await expect(help).toBeVisible();
+  await help
     .getByRole('button', { name: 'Vista accesible', exact: true })
     .click();
-  const accessible = page.getByRole('dialog', { name: 'Atlas, sin barreras.' });
+  const accessible = page.getByRole('dialog', {
+    name: 'Otra forma de explorar',
+  });
   await expect(accessible).toBeVisible();
+  await accessible
+    .getByRole('button', { name: 'Volver a Ayuda', exact: true })
+    .click();
+  await expect(help).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(accessible).not.toBeVisible();
-
-  await page.getByRole('button', { name: 'El proyecto', exact: true }).click();
-  const project = page.getByRole('dialog', {
-    name: 'Estamos construyendo Atlas.',
-  });
-  await expect(project).toBeVisible();
-  const dataPhase = project.getByRole('button', {
-    name: '02 Datos Por construir',
-  });
-  await dataPhase.click();
-  await expect(dataPhase).toHaveAttribute('aria-pressed', 'true');
-  await expect(project.locator('#phase-detail')).toContainText(
-    'Tu historia, en local',
-  );
+  await expect(help).not.toBeVisible();
+  await expect(helpTrigger).toBeFocused();
 });
 
 test('sin WebGL se ofrece una alternativa accesible y la opción de reintentar', async ({
@@ -556,11 +767,14 @@ test('sin WebGL se ofrece una alternativa accesible y la opción de reintentar',
   if (!failedCanvas)
     throw new Error('No se ha creado el lienzo del explorador.');
   await expect(retry).toBeVisible();
+  await page.getByRole('button', { name: 'Ayuda', exact: true }).click();
   await page
-    .getByRole('navigation', { name: 'Navegación principal' })
+    .getByRole('dialog', { name: 'Cómo explorar', exact: true })
     .getByRole('button', { name: 'Vista accesible', exact: true })
     .click();
-  const accessible = page.getByRole('dialog', { name: 'Atlas, sin barreras.' });
+  const accessible = page.getByRole('dialog', {
+    name: 'Otra forma de explorar',
+  });
   await expect(accessible).toBeVisible();
   await page.keyboard.press('Escape');
   await retry.click();

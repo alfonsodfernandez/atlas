@@ -1,9 +1,10 @@
 # ATLAS — hoja de ruta
 
-El hito activo de la Fase 1 es un **globo político sencillo**. La decisión
-vigente utiliza costas y fronteras aproximadas de Natural Earth 1:110m, colores
-planos y una sola pasada WebGL. Sustituye los continentes dibujados a mano de la
-versión anterior; el motor y la interfaz siguen siendo código propio.
+El hito activo de la Fase 1 es el **rediseño con el globo como protagonista**.
+La interfaz reúne los controles alrededor del planeta y muestra tres países de
+un ejemplo ficticio: España (`ESP`), México (`MEX`) y Japón (`JPN`). Las máscaras
+locales de Natural Earth cargan detalle adicional al acercarse. El motor y la
+interfaz se mantienen en WebGL, TypeScript y CSS propios.
 
 Se mantiene el avance por fases y un proyecto funcional en cada hito. No se
 solicitan ni utilizan datos reales para desarrollar. Las funciones futuras de
@@ -93,9 +94,11 @@ verificadas. Sus contornos ilustrativos se sustituyen en el hito cartográfico.
       método están en [docs/performance/](docs/performance/).
 - [x] Verificar la CI y el despliegue.
 
-### Globo cartográfico — revisión actual
+### Globo cartográfico — versión anterior
 
-Rama: `fase-1-globo-cartografico`.
+Rama: `fase-1-globo-cartografico`. Integrada como `e07fe9e` mediante la
+[PR #5](https://github.com/alfonsodfernandez/atlas/pull/5). Sus medidas describen
+la versión previa al rediseño del globo.
 
 - [x] Generar una máscara local a partir de Natural Earth 1:110m fijado y registrar
       su procedencia, licencia y hashes.
@@ -108,11 +111,33 @@ Rama: `fase-1-globo-cartografico`.
 - [x] Cumplir los presupuestos de 40 KiB de JS, 15 KiB con gzip y 44 KiB de
       estimación inicial JS/CSS con gzip más el PNG.
 - [x] Registrar medidas comparables y captura real de esta revisión.
-- [ ] Confirmar CI verde y despliegue público.
+- [x] Confirmar CI verde y despliegue público.
 
 **Criterio de cierre:** globo político sencillo con fronteras reconocibles y
 simplificadas, presupuesto de descarga comprobado, tests verdes y publicación
 verificada. La máscara no acredita precisión topológica ni sirve para geocodificar.
+
+### Globo protagonista — revisión actual
+
+Rama: `fase-1-atlas-globo-central`.
+
+- [x] Reorganizar la pantalla alrededor del planeta, con controles y paneles nativos.
+- [x] Identificar ESP/MEX/JPN y sus cifras como ejemplos ficticios, separados de
+      cualquier historial de Timeline.
+- [x] Permitir centrar la cámara en España, México y Japón desde el panel de ejemplo.
+- [x] Activar y desactivar los colores de la demostración y las fronteras.
+- [x] Mantener teclado, gestos, reintento, privacidad y alternativa accesible.
+- [x] Respetar movimiento reducido y detener la rotación al interactuar.
+- [x] Cargar una máscara inicial 1:110m y solicitar el detalle 1:50m al hacer zoom.
+- [x] Mantener los canales y el ejemplo coherentes entre los dos niveles de detalle.
+- [x] Conservar una pasada WebGL y dibujo bajo demanda fuera de la rotación.
+- [x] Verificar diseño, legibilidad, controles y fronteras en escritorio y móvil.
+- [x] Registrar medidas y captura de esta revisión sin reutilizar resultados antiguos.
+- [ ] Confirmar CI y publicación.
+
+**Criterio de cierre:** globo como escena principal, demostración claramente
+ficticia, controles funcionales, detalle progresivo probado y publicación
+verificada. Esto no completa las fases de datos personales.
 
 ## Fase 2 — Datos
 
@@ -232,17 +257,22 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
   inicial de JS/CSS con gzip y mapas es de 590.694 bytes, dentro de 700 KiB.
   La reducción de JavaScript bruto es del 99,1 %. Las métricas exactas y los
   límites de la comparación están en [docs/performance/README.md](docs/performance/README.md).
-- **Cartografía actual:** Natural Earth 1:110m, fijado a una revisión y con
-  licencia de dominio público. La fuente local contiene 177 entidades y se
-  convierte de antemano en una máscara PNG de tierra/fronteras. Su simplificación
-  es para visualización y no promete exactitud topológica, legal ni de geocodificación.
-  La procedencia se documenta en `docs/cartografia.md`.
-- **Presentación actual:** colores planos, fondo neutro y fronteras activables.
-  Se retiran el relieve ilustrado, las fotografías, la cuadrícula y el modo
-  día/noche de las versiones anteriores para centrar la página en el mapa político.
-- **Presupuestos vigentes:** 40 KiB de JS bruto, 15 KiB con gzip y 44 KiB para la
-  estimación inicial de JS/CSS con gzip y PNG. Son límites de build; las medidas
-  de la revisión cartográfica se registrarán al comprobarla.
+- **Cartografía actual:** máscara inicial de Natural Earth 1:110m a 1024 × 512
+  y detalle de Natural Earth 1:50m a 2048 × 1024, cargado al acercarse. Las fuentes
+  locales contienen 177 y 242 entidades y tienen licencia de dominio público.
+  Las máscaras son de visualización, no un geocodificador. La procedencia y los
+  hashes se documentan en [docs/cartografia.md](docs/cartografia.md).
+- **Ejemplo visible:** ESP/MEX/JPN se resaltan como datos ficticios, con un aviso
+  de ejemplo junto a las cifras y el panel. No describen el historial de Alfonso.
+  El canal azul de las máscaras guarda su unión; no identifica países por separado.
+- **Presentación actual:** el globo ocupa la escena principal. Los paneles y
+  controles permiten consultar ayuda, privacidad y la demostración, centrar un
+  ejemplo y activar sus colores o las fronteras. La rotación respeta las
+  preferencias de movimiento y se detiene al interactuar.
+- **Presupuestos y medidas:** hasta 40 KiB de JS bruto, 15 KiB de JS con gzip y
+  44 KiB de estimación inicial JS/CSS con gzip más el mapa base; el detalle tiene
+  un límite separado de 64 KiB. Las máscaras pesan 18.277 y 51.920 bytes.
+  El rediseño estima 33.447 bytes de carga inicial. [Comparación](docs/performance/README.md).
 - **Fases:** el trabajo actual sigue dentro del globo de Fase 1. Los parsers,
   datos, viajes y estadísticas de Fase 2 y siguientes no están implementados.
 - **Privacidad:** se mantienen el `.gitignore`, el hook del índice y el control
@@ -250,8 +280,9 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
   de configuración sin coordenadas personales.
 - **Investigación:** antes de programar parsers hay que comprobar los formatos
   actuales de Timeline en fuentes externas y citar ejemplos/documentación.
-- **Datos de desarrollo:** solo muestras sintéticas inequívocas cuando llegue
-  la Fase 2; ninguna estadística inventada se presenta como historial de Alfonso.
+- **Datos de desarrollo:** la UI actual muestra únicamente los tres países de
+  ejemplo ficticios. La Fase 2 añadirá muestras sintéticas de formatos Timeline;
+  ninguna de esas estadísticas se presenta como historial de Alfonso.
 - **Hosting:** GitHub Pages publicó la primera versión nativa y se verificó su
   renderizado. Cada publicación usa la revisión actual de main con CI correcta.
 - **Git:** ramas por fase, commits convencionales y merge con comprobaciones
@@ -260,7 +291,20 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
   equipo y decidir zonas de exclusión y lugares públicos. Ninguno de esos datos
   es necesario para desarrollar el motor.
 
-## Validación del globo cartográfico
+## Validación del rediseño del globo
+
+- `node scripts/prepare-map.mjs --check` reproduce ambos niveles cartográficos.
+- `npm run check` y `npm run build` correctos. Pasan las 48 pruebas unitarias y
+  las 16 pruebas de navegador en escritorio y emulación móvil.
+- El globo conserva el mapa base si la petición del detalle responde con error.
+  Se comprobó con una respuesta HTTP 503 simulada en Chromium.
+- El mapa base se solicita una vez. El detalle llega al acercarse y se conserva
+  para recuperar WebGL. [Mediciones](docs/performance/README.md).
+- [Captura de escritorio](docs/images/globo-atlas.png) y
+  [captura móvil](docs/images/globo-atlas-movil.png). Se revisó también a 320 px,
+  en tablet y en horizontal, con el globo y los controles en filas propias.
+
+## Validación histórica del globo cartográfico
 
 - `node scripts/prepare-map.mjs --check` reproduce la máscara de 17.081 bytes.
 - `npm run check` y `npm run build` correctos. Pasan las 45 pruebas unitarias.
@@ -268,6 +312,9 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
   comprueban el dibujo, las fronteras, la recuperación WebGL y los controles.
 - La compilación carga 32.757 bytes estimados. [Mediciones](docs/performance/README.md).
 - [Captura del visor](docs/images/globo-cartografico.png).
+- La revisión `e07fe9e` pasó la
+  [CI](https://github.com/alfonsodfernandez/atlas/actions/runs/44263054207) y se
+  publicó mediante [Pages](https://github.com/alfonsodfernandez/atlas/actions/runs/44263356579).
 
 ## Validación histórica de la primera reescritura nativa
 

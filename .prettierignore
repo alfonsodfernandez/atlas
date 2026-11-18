@@ -5,6 +5,7 @@ playwright-report/
 test-results/
 package-lock.json
 scripts/geo/ne-110m-countries.json
+scripts/geo/ne-50m-countries.json
 data/raw/
 atlas.config.json
 .env
