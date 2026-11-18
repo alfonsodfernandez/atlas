@@ -1,5 +1,34 @@
 # Rendimiento de ATLAS
 
+## Globo cartográfico
+
+La comparación del 18 de noviembre de 2026 toma como referencia la Tierra
+ilustrada publicada en `56776d9`. El nuevo globo dibuja los límites de Natural
+Earth con una máscara local de dos canales y una sola llamada WebGL.
+
+| Medida                              | Tierra ilustrada | Globo cartográfico |
+| ----------------------------------- | ---------------: | -----------------: |
+| Descarga inicial estimada, bytes    |           48.006 |             32.757 |
+| Subrecursos decodificados, bytes    |           81.262 |             63.136 |
+| Subrecursos solicitados             |                3 |                  3 |
+| JavaScript de build, bytes          |           36.014 |             32.389 |
+| JavaScript de build con gzip, bytes |           13.257 |             12.088 |
+| Imagen o máscara, bytes             |           30.768 |             17.081 |
+| Llamadas de dibujo por fotograma    |                2 |                  1 |
+| Mediana hasta el primer dibujo, ms  |              126 |                106 |
+
+La descarga inicial estimada baja un **32 %**. Suma JavaScript y CSS con gzip
+más el tamaño de la máscara y excluye HTML y cabeceras. El límite que aplica el
+build es de 44 KiB para esa estimación, 40 KiB de JavaScript bruto y 15 KiB de
+JavaScript con gzip. [Informe de compilación](cartographic-bundle.json).
+
+Se alternaron cinco arranques fríos por versión con Chromium y SwiftShader,
+servidor local, 1280 × 850 a densidad 1 y movimiento reducido. En otra prueba de
+dos segundos con el movimiento normal y los controles intactos, la versión
+anterior promedió 54 llamadas de dibujo por segundo y la actual hizo cero.
+La actual deja la rotación apagada al abrir. Los tiempos corresponden a estas
+muestras en un entorno con GPU emulada. [Todas las muestras](cartographic-runtime.json).
+
 ## Tierra original
 
 La comparación del 17 de noviembre de 2026 toma como referencia `ffebdb5`,
@@ -49,7 +78,7 @@ Con el servidor abierto, ejecuta este comando en otra terminal.
 npm run measure:runtime -- http://127.0.0.1:4173/atlas/ /tmp/atlas-runtime.json
 ```
 
-Para comparar, compila también `ffebdb5` en un checkout separado y usa el
+Para comparar, compila también `56776d9` en un checkout separado y usa el
 mismo script de medición con los dos builds. Alterna las versiones y ejecuta
 un solo navegador a la vez para reducir la competencia por CPU y GPU.
 

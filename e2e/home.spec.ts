@@ -8,7 +8,7 @@ const globeStage = (page: Page) =>
   page.getByRole('region', { name: 'Globo terráqueo 3D', exact: true });
 
 async function waitForScene(page: Page) {
-  await expect(globeEngine(page)).toHaveAttribute('data-draw-calls', '2');
+  await expect(globeEngine(page)).toHaveAttribute('data-draw-calls', '1');
 }
 
 async function frameCount(page: Page) {
@@ -81,6 +81,8 @@ async function captureNextCanvasFrame(page: Page, action: () => Promise<void>) {
     const target = window as Window & { atlasFrameHash?: number };
     delete target.atlasFrameHash;
     const observer = new MutationObserver(() => {
+      // Context restoration can draw a placeholder before its map is uploaded.
+      if (element.getAttribute('data-engine-state') !== 'ready') return;
       const pixels = new Uint8Array(canvas.width * canvas.height * 4);
       gl.readPixels(
         0,
@@ -175,7 +177,7 @@ async function cameraValue(page: Page, attribute: string) {
   return Number(value);
 }
 
-test('el globo original carga su textura y controles de cámara con una descarga pequeña', async ({
+test('el globo cartográfico carga su mapa y controles con una descarga pequeña', async ({
   page,
 }) => {
   const assertRuntime = observeRuntime(page);
@@ -213,28 +215,32 @@ test('el globo original carga su textura y controles de cámara con una descarga
       decodedBytes:
         (navigation?.decodedBodySize ?? 0) +
         entries.reduce((bytes, entry) => bytes + entry.decodedBodySize, 0),
-      textureBytes: entries.find(
-        (entry) =>
-          new URL(entry.name).pathname === '/atlas/maps/atlas-earth.png',
+      mapBytes: entries.find(
+        (entry) => new URL(entry.name).pathname === '/atlas/maps/atlas-map.png',
       )?.decodedBodySize,
       paths: entries.map((entry) => new URL(entry.name).pathname),
     };
   });
   expect(resources.javascriptBytes).toBeGreaterThan(0);
-  expect(resources.javascriptBytes).toBeLessThanOrEqual(65_536);
-  expect(resources.decodedBytes).toBeLessThanOrEqual(144 * 1_024);
-  expect(resources.textureBytes).toBeGreaterThan(0);
-  expect(resources.textureBytes).toBeLessThanOrEqual(80 * 1_024);
+  expect(resources.javascriptBytes).toBeLessThanOrEqual(40 * 1_024);
+  expect(resources.decodedBytes).toBeLessThanOrEqual(96 * 1_024);
+  expect(resources.mapBytes).toBeGreaterThan(0);
+  expect(resources.mapBytes).toBeLessThanOrEqual(44 * 1_024);
+  expect(resources.paths.filter((path) => path.endsWith('.js'))).toHaveLength(
+    1,
+  );
   expect(resources.paths.some((path) => /cesium|\/Workers\//i.test(path))).toBe(
     false,
   );
-  expect(resources.paths).toContain('/atlas/maps/atlas-earth.png');
-  expect(resources.paths).not.toContain('/atlas/maps/borders.bin');
-  expect(resources.paths).not.toContain('/atlas/maps/earth.jpg');
-  expect(resources.paths).not.toContain('/atlas/maps/countries.geojson');
+  expect(
+    resources.paths.filter((path) => path.startsWith('/atlas/maps/')),
+  ).toEqual(['/atlas/maps/atlas-map.png']);
   const credits = page.locator('footer.credits');
-  await expect(credits).toContainText('Cartografía original de ATLAS');
-  await expect(credits).not.toContainText(/NASA|Natural Earth/);
+  await expect(credits).toContainText('Fronteras simplificadas');
+  await expect(
+    credits.getByRole('link', { name: 'Natural Earth', exact: true }),
+  ).toBeVisible();
+  await expect(credits).not.toContainText('NASA');
 
   const initialHeight = await cameraValue(page, 'data-camera-height');
   await page.getByRole('button', { name: 'Acercar', exact: true }).click();
@@ -267,27 +273,25 @@ test('el globo original carga su textura y controles de cámara con una descarga
     .poll(() => cameraValue(page, 'data-camera-pitch'))
     .not.toBe(initialPitch);
 
-  const grid = page.getByRole('button', {
-    name: 'Cuadrícula geográfica',
+  const borders = page.getByRole('button', {
+    name: 'Fronteras',
     exact: true,
   });
-  await expect(grid).toHaveAttribute('aria-pressed', 'false');
-  const lighting = page.getByRole('button', {
-    name: 'Iluminación día y noche',
-    exact: true,
-  });
-  await expect(lighting).toHaveAttribute('aria-pressed', 'true');
+  await expect(borders).toHaveAttribute('aria-pressed', 'true');
   await expectIdleRenderer(page);
   const originalFrame = await captureNextCanvasFrame(page, () =>
-    lighting.click(),
+    globeStage(page).press('Home'),
   );
-  await expect(lighting).toHaveAttribute('aria-pressed', 'false');
-  const gridFrame = await captureNextCanvasFrame(page, () => grid.click());
-  await expect(grid).toHaveAttribute('aria-pressed', 'true');
-  expect(gridFrame).not.toBe(originalFrame);
+  const borderlessFrame = await captureNextCanvasFrame(page, () =>
+    borders.click(),
+  );
+  await expect(borders).toHaveAttribute('aria-pressed', 'false');
+  expect(borderlessFrame).not.toBe(originalFrame);
   await waitForScene(page);
-  const restoredFrame = await captureNextCanvasFrame(page, () => grid.click());
-  await expect(grid).toHaveAttribute('aria-pressed', 'false');
+  const restoredFrame = await captureNextCanvasFrame(page, () =>
+    borders.click(),
+  );
+  await expect(borders).toHaveAttribute('aria-pressed', 'true');
   expect(restoredFrame).toBe(originalFrame);
   await waitForScene(page);
 
@@ -328,6 +332,9 @@ test('la interacción detiene la rotación automática', async ({ page }) => {
     exact: true,
   });
   await expect(rotation).toBeEnabled();
+  await expect(rotation).toHaveAttribute('aria-pressed', 'false');
+  await expectIdleRenderer(page);
+  await rotation.click();
   await expect(rotation).toHaveAttribute('aria-pressed', 'true');
   const initialFrames = await frameCount(page);
   await expect.poll(() => frameCount(page)).toBeGreaterThan(initialFrames);
@@ -402,12 +409,22 @@ test('el contexto WebGL se recupera conservando el mapa y los controles', async 
   page,
 }) => {
   const uncaughtErrors: string[] = [];
+  const mapRequests: string[] = [];
   page.on('pageerror', (error) => uncaughtErrors.push(error.message));
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/atlas/maps/atlas-map.png') {
+      mapRequests.push(request.url());
+    }
+  });
   await page.goto('./');
   await waitForGlobe(page);
   await waitForScene(page);
+  await expectIdleRenderer(page);
   const canvas = globeEngine(page).locator('canvas');
   const originalCanvas = await canvas.elementHandle();
+  const originalFrame = await captureNextCanvasFrame(page, () =>
+    globeStage(page).press('Home'),
+  );
   const initialFrames = await frameCount(page);
   const canLoseContext = await canvas.evaluate((element) => {
     if (!(element instanceof HTMLCanvasElement))
@@ -434,8 +451,15 @@ test('el contexto WebGL se recupera conservando el mapa y los controles', async 
   );
   await waitForGlobe(page);
   await waitForScene(page);
+  // The mobile status message changes layout; compare after its final resize.
+  await expectIdleRenderer(page);
+  const restoredFrame = await captureNextCanvasFrame(page, () =>
+    globeStage(page).press('Home'),
+  );
+  expect(restoredFrame).toBe(originalFrame);
   expect(await originalCanvas?.evaluate((node) => node.isConnected)).toBe(true);
   expect(await frameCount(page)).toBeGreaterThan(initialFrames);
+  expect(mapRequests).toHaveLength(1);
   await page.getByRole('button', { name: 'Acercar', exact: true }).click();
   await expectIdleRenderer(page);
   expect(uncaughtErrors).toEqual([]);

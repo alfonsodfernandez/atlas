@@ -1,4 +1,4 @@
-import { createEarthMesh, createStars, MAX_TILT } from './geometry';
+import { createEarthMesh, MAX_TILT } from './geometry';
 import {
   cameraPose,
   clamp,
@@ -8,42 +8,32 @@ import {
   lookAt,
   multiply,
   perspective,
-  sunDirection,
   wrapLongitude,
   type CameraPose,
   type PositionDescription,
   type Orbit,
-  type Vec3,
 } from './math';
-import {
-  earthFragment,
-  earthVertex,
-  starFragment,
-  starVertex,
-} from './shaders';
+import { earthFragment, earthVertex } from './shaders';
 import type { GlobeHandle, GlobeProps, GlobeStatus } from './types';
 
-interface Program {
-  handle: WebGLProgram;
-  uniforms: Map<string, WebGLUniformLocation | null>;
-}
 interface Graphics {
-  earth: Program;
-  stars: Program;
+  program: WebGLProgram;
+  mvpUniform: WebGLUniformLocation | null;
+  eyeUniform: WebGLUniformLocation | null;
+  bordersUniform: WebGLUniformLocation | null;
   sphereVao: WebGLVertexArrayObject;
-  starVao: WebGLVertexArrayObject;
   texture: WebGLTexture;
   indexCount: number;
 }
 type Pointer = { x: number; y: number; button: number };
 
-const MIN_RANGE = 0.00005;
+// Regional overview: the approximate mask has no street-level detail.
+const MIN_RANGE = 0.16;
 const MAX_RANGE = 9.4;
 const MAX_PIXELS = 850_000;
 const AUTO_FRAME_INTERVAL = 1000 / 30;
-const STAR_COUNT = 384;
 
-/** One opaque globe and one batch of stars, drawn only when needed. */
+/** One opaque cartographic globe, drawn only when needed. */
 export default class GlobeRenderer implements GlobeHandle {
   private readonly canvas = document.createElement('canvas');
   private readonly abort = new AbortController();
@@ -81,7 +71,6 @@ export default class GlobeRenderer implements GlobeHandle {
   private cssHeight = 1;
   private cameraTouched = false;
   private status: GlobeStatus = { state: 'loading' };
-  private sun: Vec3 = sunDirection();
   private orbit: Orbit = { longitude: -15, latitude: 25, range: 2, tilt: 0 };
 
   constructor(
@@ -157,7 +146,7 @@ export default class GlobeRenderer implements GlobeHandle {
     return shader;
   }
 
-  private program(vertex: string, fragment: string, names: string[]): Program {
+  private program(vertex: string, fragment: string): WebGLProgram {
     const gl = this.gl!;
     const program = gl.createProgram();
     if (!program) throw new Error('No se pudo crear el programa gráfico.');
@@ -177,12 +166,7 @@ export default class GlobeRenderer implements GlobeHandle {
       if (a) gl.deleteShader(a);
       if (b) gl.deleteShader(b);
     }
-    return {
-      handle: program,
-      uniforms: new Map(
-        names.map((name) => [name, gl.getUniformLocation(program, name)]),
-      ),
-    };
+    return program;
   }
 
   private buffer(target: number, data: ArrayBufferView): WebGLBuffer {
@@ -207,18 +191,7 @@ export default class GlobeRenderer implements GlobeHandle {
   private createGraphics(): void {
     const gl = this.gl!;
     this.releaseGraphics();
-    const earth = this.program(earthVertex, earthFragment, [
-      'uMvp',
-      'uEarth',
-      'uSun',
-      'uEye',
-      'uLighting',
-      'uGrid',
-    ]);
-    const stars = this.program(starVertex, starFragment, [
-      'uMvp',
-      'uPixelRatio',
-    ]);
+    const program = this.program(earthVertex, earthFragment);
     const mesh = createEarthMesh();
     const sphereVao = this.vao();
     this.buffer(gl.ARRAY_BUFFER, mesh.vertices);
@@ -231,12 +204,6 @@ export default class GlobeRenderer implements GlobeHandle {
       gl.enableVertexAttribArray(location!);
       gl.vertexAttribPointer(location!, length!, gl.FLOAT, false, 32, offset!);
     }
-    const starVao = this.vao();
-    this.buffer(gl.ARRAY_BUFFER, createStars(STAR_COUNT));
-    gl.enableVertexAttribArray(0);
-    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 16, 0);
-    gl.enableVertexAttribArray(1);
-    gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 16, 12);
     const texture = gl.createTexture();
     if (!texture) throw new Error('No se pudo crear la textura.');
     this.gpuCleanup.push(() => gl.deleteTexture(texture));
@@ -251,19 +218,26 @@ export default class GlobeRenderer implements GlobeHandle {
     );
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     this.graphics = {
-      earth,
-      stars,
+      program,
+      mvpUniform: gl.getUniformLocation(program, 'uMvp'),
+      eyeUniform: gl.getUniformLocation(program, 'uEye'),
+      bordersUniform: gl.getUniformLocation(program, 'uBorders'),
       sphereVao,
-      starVao,
       texture,
       indexCount: mesh.indices.length,
     };
-    gl.useProgram(earth.handle);
-    gl.uniform1i(earth.uniforms.get('uEarth') ?? null, 0);
-    gl.clearColor(5 / 255, 10 / 255, 16 / 255, 1);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    // This renderer exclusively owns one program and VAO for the context.
+    gl.useProgram(program);
+    gl.uniform1i(gl.getUniformLocation(program, 'uMap'), 0);
+    gl.uniform1i(
+      this.graphics.bordersUniform,
+      Number(this.options.bordersVisible),
+    );
+    gl.clearColor(245 / 255, 244 / 255, 240 / 255, 1);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
     gl.cullFace(gl.BACK);
-    gl.bindVertexArray(null);
   }
 
   private releaseGraphics(): void {
@@ -278,6 +252,7 @@ export default class GlobeRenderer implements GlobeHandle {
     const bitmap = await createImageBitmap(blob, {
       imageOrientation: 'none',
       premultiplyAlpha: 'none',
+      colorSpaceConversion: 'none',
     });
     try {
       if (
@@ -287,14 +262,7 @@ export default class GlobeRenderer implements GlobeHandle {
       )
         return;
       gl.bindTexture(gl.TEXTURE_2D, graphics.texture);
-      gl.texImage2D(
-        gl.TEXTURE_2D,
-        0,
-        gl.RGB565,
-        gl.RGB,
-        gl.UNSIGNED_SHORT_5_6_5,
-        bitmap,
-      );
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8, gl.RG, gl.UNSIGNED_BYTE, bitmap);
       gl.generateMipmap(gl.TEXTURE_2D);
       if (gl.isContextLost()) return;
       if (gl.getError() !== gl.NO_ERROR)
@@ -310,7 +278,7 @@ export default class GlobeRenderer implements GlobeHandle {
   private async loadTexture(): Promise<void> {
     try {
       const response = await fetch(
-        `${import.meta.env.BASE_URL}maps/atlas-earth.png`,
+        `${import.meta.env.BASE_URL}maps/atlas-map.png`,
         { signal: this.abort.signal },
       );
       if (!response.ok) throw new Error('Imagen no disponible.');
@@ -490,11 +458,6 @@ export default class GlobeRenderer implements GlobeHandle {
     });
     intersection.observe(this.host);
     this.cleanup.push(() => intersection.disconnect());
-    const sunTimer = window.setInterval(() => {
-      this.sun = sunDirection();
-      if (this.options.lighting) this.invalidate();
-    }, 60_000);
-    this.cleanup.push(() => window.clearInterval(sunTimer));
   }
 
   private resize(): void {
@@ -628,43 +591,10 @@ export default class GlobeRenderer implements GlobeHandle {
     lookAt(this.view, pose.eye, pose.target, pose.up);
     multiply(this.mvp, this.projection, this.view);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.enable(gl.BLEND);
-    gl.disable(gl.CULL_FACE);
-    gl.useProgram(gpu.stars.handle);
-    gl.uniformMatrix4fv(
-      gpu.stars.uniforms.get('uMvp') ?? null,
-      false,
-      this.mvp,
-    );
-    gl.uniform1f(
-      gpu.stars.uniforms.get('uPixelRatio') ?? null,
-      this.pixelRatio,
-    );
-    gl.bindVertexArray(gpu.starVao);
-    gl.drawArrays(gl.POINTS, 0, STAR_COUNT);
-    // The convex, opaque ellipsoid covers the stars with its front faces.
-    // This scene does not need a depth attachment.
-    gl.disable(gl.BLEND);
-    gl.enable(gl.CULL_FACE);
-    gl.useProgram(gpu.earth.handle);
-    gl.uniformMatrix4fv(
-      gpu.earth.uniforms.get('uMvp') ?? null,
-      false,
-      this.mvp,
-    );
-    gl.uniform3fv(gpu.earth.uniforms.get('uEye') ?? null, pose.eye);
-    gl.uniform3fv(gpu.earth.uniforms.get('uSun') ?? null, this.sun);
-    gl.uniform1f(
-      gpu.earth.uniforms.get('uLighting') ?? null,
-      Number(this.options.lighting),
-    );
-    gl.uniform1i(
-      gpu.earth.uniforms.get('uGrid') ?? null,
-      Number(this.options.gridVisible),
-    );
-    gl.bindVertexArray(gpu.sphereVao);
+    gl.uniformMatrix4fv(gpu.mvpUniform, false, this.mvp);
+    gl.uniform3fv(gpu.eyeUniform, pose.eye);
     gl.drawElements(gl.TRIANGLES, gpu.indexCount, gl.UNSIGNED_SHORT, 0);
-    if (this.frames === 0) this.host.dataset.drawCalls = '2';
+    if (this.frames === 0) this.host.dataset.drawCalls = '1';
     this.frames += 1;
     this.host.dataset.frameCount = String(this.frames);
   }
@@ -711,12 +641,10 @@ export default class GlobeRenderer implements GlobeHandle {
     this.lastFrame = 0;
     this.invalidate();
   }
-  setGridVisible(value: boolean): void {
-    this.options.gridVisible = value;
-    this.invalidate();
-  }
-  setLighting(value: boolean): void {
-    this.options.lighting = value;
+  setBordersVisible(value: boolean): void {
+    this.options.bordersVisible = value;
+    if (this.graphics && !this.contextLost)
+      this.gl!.uniform1i(this.graphics.bordersUniform, Number(value));
     this.invalidate();
   }
   setReducedMotion(value: boolean): void {

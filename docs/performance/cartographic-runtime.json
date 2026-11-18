@@ -1,0 +1,92 @@
+{
+  "date": "2026-11-18",
+  "viewport": {
+    "width": 1280,
+    "height": 850,
+    "deviceScaleFactor": 1
+  },
+  "rendering": "Chromium + SwiftShader, cold browser, reduced motion, local static server",
+  "previous": {
+    "revision": "56776d98d2e64b5f9ed5fc550ccdde87238c49c9",
+    "javascript": "index-BVyFirlo.js",
+    "textureSha256": "628097ba51fbe768e31136b53e0ec024533866251e34d522194f8c2b5d803588",
+    "javascriptDecodedBytes": 36014,
+    "resourceDecodedBytes": 81262,
+    "requestCount": 3,
+    "medianGlobeReadyMs": 126,
+    "idleDrawsPerSecond": 54,
+    "samples": [
+      {
+        "measuredAt": "2026-11-18T07:53:41.885Z",
+        "globeReadyMs": 213,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 109
+      },
+      {
+        "measuredAt": "2026-11-18T07:53:44.392Z",
+        "globeReadyMs": 72,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      },
+      {
+        "measuredAt": "2026-11-18T07:53:45.187Z",
+        "globeReadyMs": 174,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 100
+      },
+      {
+        "measuredAt": "2026-11-18T07:53:47.624Z",
+        "globeReadyMs": 126,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      },
+      {
+        "measuredAt": "2026-11-18T07:53:48.452Z",
+        "globeReadyMs": 121,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      }
+    ]
+  },
+  "cartographic": {
+    "javascript": "index-Dv9X8udy.js",
+    "textureSha256": "b4ddd05ca8104caad6f1dcbf7125e78d36f4145538dae93b535bcbb72c970efa",
+    "javascriptDecodedBytes": 32389,
+    "resourceDecodedBytes": 63136,
+    "requestCount": 3,
+    "medianGlobeReadyMs": 106,
+    "idleDrawsPerSecond": 0,
+    "samples": [
+      {
+        "measuredAt": "2026-11-18T07:53:42.856Z",
+        "globeReadyMs": 185,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      },
+      {
+        "measuredAt": "2026-11-18T07:53:43.715Z",
+        "globeReadyMs": 68,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      },
+      {
+        "measuredAt": "2026-11-18T07:53:46.045Z",
+        "globeReadyMs": 106,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      },
+      {
+        "measuredAt": "2026-11-18T07:53:46.823Z",
+        "globeReadyMs": 105,
+        "longTaskCount": 0,
+        "longTaskDurationMs": 0
+      },
+      {
+        "measuredAt": "2026-11-18T07:53:49.300Z",
+        "globeReadyMs": 143,
+        "longTaskCount": 1,
+        "longTaskDurationMs": 70
+      }
+    ]
+  }
+}

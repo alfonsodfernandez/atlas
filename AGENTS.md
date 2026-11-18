@@ -3,9 +3,10 @@
 ## Alcance y decisión vigente
 
 Lee `PLAN.md` antes de modificar el proyecto. El visor está en la Fase 1.
-El usuario eligió una Tierra original de ATLAS con continentes dibujados a mano
-y geografía aproximada, sin fronteras oficiales. Mantén la generación visual
-en código propio, el renderizador en WebGL 2 y la interfaz en TypeScript y CSS.
+La decisión vigente del usuario es un globo político sencillo con costas y
+fronteras aproximadas de Natural Earth 1:110m, colores planos y una sola llamada
+WebGL por fotograma. Mantén el renderizador propio y la interfaz TypeScript/CSS.
+Esta revisión sustituye los continentes dibujados a mano de la versión anterior.
 
 Investiga los formatos actuales antes de implementar parsers de Timeline y
 distingue los datos sintéticos de un historial personal.
@@ -27,8 +28,8 @@ distingue los datos sintéticos de un historial personal.
 - `npm run check:privacy`: ficheros versionados y nuevos no ignorados;
   `npm run check:privacy -- --staged`: blobs exactos del índice.
 - `ATLAS_BASE_PATH=/ npm run build`: build para la raíz de un dominio.
-- `node scripts/prepare-earth.mjs [--check]`: genera la textura original o
-  comprueba que coincide con la versión guardada.
+- `node scripts/prepare-map.mjs [--check]`: genera la máscara cartográfica local
+  o comprueba que coincide con la versión guardada.
 
 El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 
@@ -41,7 +42,9 @@ El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 - `packages/geo/`: futura geocodificación offline.
 - `scripts/`: calidad, generación reproducible y mediciones.
 - `public/data/`: futura salida agregada y saneada.
-- `public/maps/`: PNG indexado generado por ATLAS y documentación del dibujo.
+- `public/maps/`: solo el PNG cartográfico que necesita el visor.
+- `scripts/geo/`: fuente Natural Earth fijada; no se publica con la web.
+- `docs/cartografia.md`: procedencia, licencia y generación de la máscara.
 - UI y documentación en español; conserva los textos centralizados para i18n.
 - Usa eventos con limpieza explícita y conserva el foco y el teclado en diálogos.
 - Valida entradas de buffers y límites antes de crear vistas o reservar memoria.
@@ -49,9 +52,10 @@ El visor nativo no utiliza claves de mapas ni requiere `.env.local`.
 - Dibuja al cambiar la escena. La rotación puede programar frames mientras está
   activa; suspéndelos si el documento o el visor dejan de estar visibles.
 - Respeta movimiento reducido y los límites de resolución del renderizador.
-- Mantén los presupuestos verificados de 48 KiB de JS, 20 KiB con gzip y
-  64 KiB de estimación inicial para JS/CSS con gzip más textura.
-- Los informes de arranque comparan una muestra fría por versión con SwiftShader.
+- Mantén los presupuestos de esta revisión: 40 KiB de JS, 15 KiB con gzip y
+  44 KiB de estimación inicial para JS/CSS con gzip más el PNG cartográfico.
+  Registra las medidas obtenidas antes de dar esos objetivos por verificados.
+- Los informes de arranque comparan muestras frías por versión con SwiftShader.
   No los presentes como FPS ni como tiempos garantizados en hardware físico.
 - Vitest comprueba matemáticas, geometría, decodificación y privacidad.
   Playwright debe renderizar el WebGL real para verificar el globo. Un mock solo
@@ -91,14 +95,17 @@ resultado real del workflow y la web antes de afirmar que se ha publicado. Los
 ## Trampas conocidas
 
 - La Fase 1 no importa Timeline ni representa visitas personales.
-- El globo es una ilustración geográfica aproximada. La futura geocodificación
-  de viajes requerirá datos adecuados y no debe usar su máscara de tierra.
-- La textura y la cuadrícula son locales. Conserva el crédito de ATLAS visible.
-- El shader terrestre integra cuadrícula e iluminación en una pasada opaca y
-  las estrellas se dibujan en una sola pasada aparte.
-- El elipsoide convexo se dibuja sin búfer de profundidad. Si se añaden
-  objetos que deban ocluirse entre sí, revisa ese supuesto. La textura se sube
-  en RGB565 y el PNG comprimido se conserva para recuperar WebGL.
+- Las fronteras simplificadas son para visualización; no prometen precisión
+  topológica o legal. La geocodificación futura usará geometrías adecuadas.
+- Conserva el crédito y la licencia de Natural Earth. Las 177 entidades de la
+  fuente 1:110m no equivalen a países visitados ni a un total de países del mundo.
+- La máscara utiliza el canal rojo para tierra y el verde para fronteras. Mantén
+  el contrato con `prepare-map.mjs` al subirla a la GPU; evita formatos que alteren
+  sus canales sin verificar el resultado.
+- El globo usa una sola pasada WebGL y un fondo neutro. Mantén la máscara
+  cartográfica y la simplificación fuera del trabajo de cada frame.
+- El PNG es un recurso de visualización generado; la fuente de Natural Earth
+  queda en `scripts/geo/` y no debe copiarse al directorio público.
 - Los eventos de pérdida/restauración de WebGL y el reintento deben liberar y
   reconstruir recursos; también aborta descargas pendientes al destruir el visor.
 - Los metadatos de cámara deben leer el estado real al ejecutar un comando,

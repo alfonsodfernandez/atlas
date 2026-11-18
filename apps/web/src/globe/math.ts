@@ -198,27 +198,3 @@ export function homeRange(aspect: number): number {
     9.4,
   );
 }
-
-/** Approximate solar ephemeris, in Earth-fixed coordinates; refreshed once a minute. */
-export function sunDirection(date = new Date()): Vec3 {
-  const d = date.getTime() / 86_400_000 - 10_957.5;
-  const anomaly = radians(357.528 + 0.9856003 * d);
-  const lambda = radians(
-    280.46 +
-      0.9856474 * d +
-      1.915 * Math.sin(anomaly) +
-      0.02 * Math.sin(2 * anomaly),
-  );
-  const obliquity = radians(23.439 - 0.0000004 * d);
-  const rightAscension = Math.atan2(
-    Math.cos(obliquity) * Math.sin(lambda),
-    Math.cos(lambda),
-  );
-  const declination = Math.asin(Math.sin(obliquity) * Math.sin(lambda));
-  const lon = rightAscension - radians(280.46061837 + 360.98564736629 * d);
-  return [
-    Math.cos(declination) * Math.cos(lon),
-    Math.sin(declination),
-    -Math.cos(declination) * Math.sin(lon),
-  ];
-}

@@ -20,10 +20,10 @@ for (const name of await readdir(assets)) {
 const sum = (entries, key) =>
   entries.reduce((total, entry) => total + entry[key], 0);
 const mapDirectory = new URL('maps/', build);
-const mapFile = 'atlas-earth.png';
+const mapFile = 'atlas-map.png';
 const mapFiles = await readdir(mapDirectory);
-if (mapFiles.some((name) => name !== mapFile && name !== 'ATLAS-EARTH.md'))
-  throw new Error('El build contiene cartografía distinta a la de ATLAS.');
+if (mapFiles.length !== 1 || mapFiles[0] !== mapFile)
+  throw new Error(`El build debe incluir únicamente ${mapFile} en maps/.`);
 const mapBytes = (await stat(new URL(mapFile, mapDirectory))).size;
 const report = {
   javascript,
@@ -35,9 +35,9 @@ const report = {
   initialPayloadGzipEstimateBytes:
     sum(javascript, 'gzipBytes') + sum(styles, 'gzipBytes') + mapBytes,
   budgets: {
-    javascriptBytes: 49_152,
-    javascriptGzipBytes: 20_480,
-    initialPayloadGzipEstimateBytes: 65_536,
+    javascriptBytes: 40_960,
+    javascriptGzipBytes: 15_360,
+    initialPayloadGzipEstimateBytes: 45_056,
   },
 };
 if (javascript.length === 0)

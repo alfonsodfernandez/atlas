@@ -13,8 +13,7 @@ type IconName =
   | 'minus'
   | 'tilt'
   | 'rotate'
-  | 'grid'
-  | 'sun'
+  | 'borders'
   | 'help'
   | 'list';
 
@@ -29,8 +28,7 @@ const iconPaths: Record<IconName, string> = {
   minus: '<path d="M5 12h14"/>',
   tilt: '<ellipse cx="12" cy="15" rx="9" ry="4" transform="rotate(-20 12 15)"/><path d="m8 4 4-2 4 2M12 2v9"/>',
   rotate: '<path d="M20 10a8 8 0 1 0-2 8M20 4v6h-6"/>',
-  grid: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 6.5h14M5 17.5h14"/>',
-  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+  borders: '<path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2V5Zm6-2v16M15 5v16"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 4m0 3v.1"/>',
   list: '<path d="M9 6h12M9 12h12M9 18h12M3 6h.1M3 12h.1M3 18h.1"/>',
 };
@@ -96,12 +94,10 @@ function template(): string {
           <p class="eyebrow">${escape(copy.eyebrow)}</p>
           <h1 id="hero-title">${escape(copy.title[0])}<br><span>${escape(copy.title[1])}</span></h1>
           <p class="intro-description">${escape(copy.intro)}</p>
-          <button class="text-button" data-dialog="project">${escape(copy.projectAction)}${icon('arrow')}</button>
-          <div class="empty-atlas"><span class="empty-mark" aria-hidden="true">+</span><div><p>${escape(copy.emptyLabel)}</p><span>${escape(copy.emptyDescription)}</span></div></div>
+          <p class="map-note">${escape(copy.emptyDescription)}</p>
         </aside>
         <div class="map-options" aria-label="${escape(copy.layersLabel)}">
-          <button class="option-button" data-action="grid" aria-pressed="false" disabled>${icon('grid')}<span>${escape(copy.grid)}</span><span class="toggle-indicator" aria-hidden="true"></span></button>
-          <button class="option-button" data-action="lighting" aria-pressed="true" disabled>${icon('sun')}<span>${escape(copy.lighting)}</span><span class="toggle-indicator" aria-hidden="true"></span></button>
+          <button class="option-button" data-action="borders" aria-pressed="true" disabled>${icon('borders')}<span>${escape(copy.borders)}</span><span class="toggle-indicator" aria-hidden="true"></span></button>
         </div>
         <div class="loading-indicator" aria-hidden="true"><span class="loading-orbit"></span><span>${escape(copy.status.loading)}</span></div>
         <div class="globe-fallback" hidden>
@@ -114,10 +110,10 @@ function template(): string {
           ${cameraButton('tilt', copy.tilt, 'tilt')}<span class="control-divider" aria-hidden="true"></span>
           ${cameraButton('zoomOut', copy.zoomOut, 'minus')}${cameraButton('zoomIn', copy.zoomIn, 'plus')}
         </div>
-        <div class="explorer-status"><p class="phase-label">${escape(copy.phase)}</p><p role="status" aria-live="polite" data-testid="globe-status" data-state="loading"><span class="status-dot loading"></span><span class="status-value">${escape(copy.status.loading)}</span></p><p class="status-note" hidden></p></div>
+        <div class="explorer-status"><p role="status" aria-live="polite" data-testid="globe-status" data-state="loading"><span class="status-dot loading"></span><span class="status-value">${escape(copy.status.loading)}</span></p><p class="status-note" hidden></p></div>
         <button class="help-button icon-button" data-dialog="help" aria-label="${escape(copy.help)}" title="${escape(copy.help)}">${icon('help')}</button>
         <p class="reduced-motion-note sr-only" hidden>${escape(copy.reducedMotion)}</p>
-        <footer class="credits" aria-label="${escape(copy.attributionsLabel)}">${escape(copy.cartographyCredit)}</footer>
+        <footer class="credits" aria-label="${escape(copy.attributionsLabel)}"><a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">${escape(copy.cartographyCredit)}</a><span>${escape(copy.cartographyNote)}</span></footer>
       </main>
       <dialog class="info-dialog" aria-labelledby="dialog-title">
         <div class="dialog-content">
@@ -126,7 +122,7 @@ function template(): string {
           <section data-panel="privacy" hidden><p class="dialog-intro">${escape(copy.privacyDialog.intro)}</p>${itemList(copy.privacyDialog.items)}</section>
           <section data-panel="help" hidden><p class="dialog-intro">${escape(copy.helpDialog.intro)}</p>${itemList(copy.helpDialog.items)}</section>
           <section data-panel="project" hidden><p class="dialog-intro">${escape(copy.projectDialog.intro)}</p><div class="phase-grid" aria-label="${escape(copy.phasesLabel)}">${phases}</div><div id="phase-detail" class="phase-detail" aria-live="polite" aria-atomic="true"><h3></h3><p></p></div></section>
-          <section data-panel="accessible" hidden><p class="dialog-intro">${escape(copy.accessibleDialog.intro)}</p><dl class="accessible-summary"><div><dt>${escape(copy.accessibleDialog.explorerLabel)}</dt><dd data-summary="status"></dd></div><div><dt>${escape(copy.accessibleDialog.cartographyLabel)}</dt><dd>${escape(copy.accessibleDialog.cartographyDescription)}</dd></div><div><dt>${escape(copy.accessibleDialog.gridLabel)}</dt><dd data-summary="grid"></dd></div><div><dt>${escape(copy.accessibleDialog.dataLabel)}</dt><dd>${escape(copy.accessibleDialog.noData)}</dd></div></dl><h3>${escape(copy.accessibleDialog.controls)}</h3><p>${escape(copy.accessibleDialog.controlsDescription)}</p><h3>${escape(copy.accessibleDialog.next)}</h3><p>${escape(copy.accessibleDialog.nextDescription)}</p><button class="text-button" data-dialog="project">${escape(copy.accessibleDialog.projectAction)}${icon('arrow')}</button></section>
+          <section data-panel="accessible" hidden><p class="dialog-intro">${escape(copy.accessibleDialog.intro)}</p><dl class="accessible-summary"><div><dt>${escape(copy.accessibleDialog.explorerLabel)}</dt><dd data-summary="status"></dd></div><div><dt>${escape(copy.accessibleDialog.cartographyLabel)}</dt><dd>${escape(copy.accessibleDialog.cartographyDescription)}</dd></div><div><dt>${escape(copy.accessibleDialog.bordersLabel)}</dt><dd data-summary="borders"></dd></div><div><dt>${escape(copy.accessibleDialog.dataLabel)}</dt><dd>${escape(copy.accessibleDialog.noData)}</dd></div></dl><h3>${escape(copy.accessibleDialog.controls)}</h3><p>${escape(copy.accessibleDialog.controlsDescription)}</p><h3>${escape(copy.accessibleDialog.next)}</h3><p>${escape(copy.accessibleDialog.nextDescription)}</p><button class="text-button" data-dialog="project">${escape(copy.accessibleDialog.projectAction)}${icon('arrow')}</button></section>
           <button class="primary-button dialog-done" data-action="close-dialog">${escape(copy.understood)}</button>
         </div>
       </dialog>
@@ -156,11 +152,10 @@ export function mountAtlas(root: HTMLElement): () => void {
   const cameraButtons =
     root.querySelectorAll<HTMLButtonElement>('[data-camera]');
   const rotationButton = query<HTMLButtonElement>('[data-action="rotation"]');
-  const gridButton = query<HTMLButtonElement>('[data-action="grid"]');
-  const lightingButton = query<HTMLButtonElement>('[data-action="lighting"]');
+  const bordersButton = query<HTMLButtonElement>('[data-action="borders"]');
   const reducedMotionNote = query<HTMLElement>('.reduced-motion-note');
   const summaryStatus = query<HTMLElement>('[data-summary="status"]');
-  const summaryGrid = query<HTMLElement>('[data-summary="grid"]');
+  const summaryBorders = query<HTMLElement>('[data-summary="borders"]');
   const dialog = query<HTMLDialogElement>('.info-dialog');
   const dialogTitle = query<HTMLHeadingElement>('#dialog-title');
   const dialogEyebrow = query<HTMLElement>('.dialog-eyebrow');
@@ -172,9 +167,8 @@ export function mountAtlas(root: HTMLElement): () => void {
     '(prefers-reduced-motion: reduce)',
   );
   let reducedMotion = motionPreference.matches;
-  let autoRotate = !reducedMotion;
-  let gridVisible = false;
-  let lighting = true;
+  let autoRotate = false;
+  let bordersVisible = true;
   let activeDialog: DialogKind | null = null;
   let returnFocus: HTMLElement | null = null;
   let renderer: GlobeRenderer | null = null;
@@ -191,16 +185,14 @@ export function mountAtlas(root: HTMLElement): () => void {
       String(autoRotate && ready && !reducedMotion),
     );
     rotationButton.title = reducedMotion ? copy.reducedMotion : copy.rotation;
-    gridButton.disabled = !ready;
-    gridButton.setAttribute('aria-pressed', String(gridVisible));
+    bordersButton.disabled = !ready;
+    bordersButton.setAttribute('aria-pressed', String(bordersVisible));
     setText(
-      summaryGrid,
-      gridVisible
-        ? copy.accessibleDialog.gridVisible
-        : copy.accessibleDialog.gridHidden,
+      summaryBorders,
+      bordersVisible
+        ? copy.accessibleDialog.bordersVisible
+        : copy.accessibleDialog.bordersHidden,
     );
-    lightingButton.disabled = !ready;
-    lightingButton.setAttribute('aria-pressed', String(lighting));
     reducedMotionNote.hidden = !reducedMotion;
   };
 
@@ -280,8 +272,7 @@ export function mountAtlas(root: HTMLElement): () => void {
     try {
       renderer = new GlobeRenderer(host, {
         autoRotate,
-        gridVisible,
-        lighting,
+        bordersVisible,
         reducedMotion,
         onInteraction: stopRotation,
         onStatus: (next: GlobeStatus) => {
@@ -321,15 +312,10 @@ export function mountAtlas(root: HTMLElement): () => void {
         autoRotate = !autoRotate;
         renderer?.setAutoRotate(autoRotate);
         updateControls();
-      } else if (action === 'grid') {
+      } else if (action === 'borders') {
         stopRotation();
-        gridVisible = !gridVisible;
-        renderer?.setGridVisible(gridVisible);
-        updateControls();
-      } else if (action === 'lighting') {
-        stopRotation();
-        lighting = !lighting;
-        renderer?.setLighting(lighting);
+        bordersVisible = !bordersVisible;
+        renderer?.setBordersVisible(bordersVisible);
         updateControls();
       } else if (renderer) {
         const command = button.dataset.camera;

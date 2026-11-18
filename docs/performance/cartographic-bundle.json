@@ -1,0 +1,28 @@
+{
+  "javascript": [
+    {
+      "name": "index-Dv9X8udy.js",
+      "bytes": 32389,
+      "gzipBytes": 12088
+    }
+  ],
+  "styles": [
+    {
+      "name": "index-D14Om8Pe.css",
+      "bytes": 13666,
+      "gzipBytes": 3588
+    }
+  ],
+  "javascriptBytes": 32389,
+  "javascriptGzipBytes": 12088,
+  "cssGzipBytes": 3588,
+  "maps": {
+    "atlas-map.png": 17081
+  },
+  "initialPayloadGzipEstimateBytes": 32757,
+  "budgets": {
+    "javascriptBytes": 40960,
+    "javascriptGzipBytes": 15360,
+    "initialPayloadGzipEstimateBytes": 45056
+  }
+}
