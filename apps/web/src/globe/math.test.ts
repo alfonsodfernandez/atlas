@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { createEarthMesh } from './geometry';
 import {
   cameraPose,
-  degrees,
   describePosition,
   homeRange,
   lookAt,
@@ -10,7 +9,6 @@ import {
   perspective,
   POLAR_RATIO,
   surfacePoint,
-  sunDirection,
   type CameraPose,
   type PositionDescription,
 } from './math';
@@ -148,17 +146,5 @@ describe('geometría y cámara WGS84', () => {
     expect(targetInView[1]).toBeCloseTo(0, 6);
     expect(targetInView[2]).toBeCloseTo(-Math.hypot(1.5, 3.5, 3), 6);
     expect([view[3], view[7], view[11], view[15]]).toEqual([0, 0, 0, 1]);
-  });
-
-  it('aproxima el Sol real en ambos solsticios sin recursos externos', () => {
-    const summer = sunDirection(new Date('2026-06-21T12:00:00Z'));
-    const winter = sunDirection(new Date('2026-12-21T12:00:00Z'));
-    expect(Math.hypot(...summer)).toBeCloseTo(1, 10);
-    expect(degrees(Math.asin(summer[1]))).toBeGreaterThan(23);
-    expect(degrees(Math.asin(winter[1]))).toBeLessThan(-23);
-    expect(summer[0]).toBeGreaterThan(0.8);
-    expect(sunDirection(new Date('2026-06-22T00:00:00Z'))[0]).toBeLessThan(
-      -0.8,
-    );
   });
 });

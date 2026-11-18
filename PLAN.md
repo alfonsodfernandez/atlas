@@ -1,8 +1,9 @@
 # ATLAS — hoja de ruta
 
-El hito activo de la Fase 1 es **Tierra original de ATLAS**. El usuario eligió
-continentes propios, geografía aproximada y ausencia de fronteras oficiales.
-El motor de WebGL directo y la interfaz nativa se mantienen y se aligeran.
+El hito activo de la Fase 1 es un **globo político sencillo**. La decisión
+vigente utiliza costas y fronteras aproximadas de Natural Earth 1:110m, colores
+planos y una sola pasada WebGL. Sustituye los continentes dibujados a mano de la
+versión anterior; el motor y la interfaz siguen siendo código propio.
 
 Se mantiene el avance por fases y un proyecto funcional en cada hito. No se
 solicitan ni utilizan datos reales para desarrollar. Las funciones futuras de
@@ -73,9 +74,12 @@ verificados el 17 de noviembre de 2026.
 pruebas verdes y publicación verificada. Los informes de tamaño y arranque no
 sustituyen una medición de FPS en dispositivos físicos.
 
-### Tierra original — fase actual
+### Tierra original — versión anterior
 
-Rama: `fase-1-tierra-original`.
+Rama: `fase-1-tierra-original`. Integrada como `56776d9`.
+[CI](https://github.com/alfonsodfernandez/atlas/actions/runs/44180645130) y
+[publicación](https://github.com/alfonsodfernandez/atlas/actions/runs/44180902301)
+verificadas. Sus contornos ilustrativos se sustituyen en el hito cartográfico.
 
 - [x] Adoptar la geografía aproximada solicitada, con contornos originales y
       cuadrícula opcional.
@@ -87,7 +91,28 @@ Rama: `fase-1-tierra-original`.
 - [x] Validar la textura, el presupuesto y los controles. La compilación suma
       48.006 bytes de JavaScript y CSS con gzip más el PNG. Las mediciones y su
       método están en [docs/performance/](docs/performance/).
-- [ ] Verificar la CI y el despliegue.
+- [x] Verificar la CI y el despliegue.
+
+### Globo cartográfico — revisión actual
+
+Rama: `fase-1-globo-cartografico`.
+
+- [x] Generar una máscara local a partir de Natural Earth 1:110m fijado y registrar
+      su procedencia, licencia y hashes.
+- [x] Mostrar continentes y fronteras aproximadas en colores planos.
+- [x] Conservar giro, zoom, inclinación, teclado, gestos y diálogos accesibles.
+- [x] Mantener la rotación como opción explícita y respetar movimiento reducido.
+- [x] Dibujar el globo en una llamada WebGL por fotograma y usar un fondo neutro.
+- [x] Incluir solo el PNG necesario en el build. Conservar los polígonos fuente fuera de la web.
+- [x] Verificar matemáticas, máscara, privacidad y controles con pruebas.
+- [x] Cumplir los presupuestos de 40 KiB de JS, 15 KiB con gzip y 44 KiB de
+      estimación inicial JS/CSS con gzip más el PNG.
+- [x] Registrar medidas comparables y captura real de esta revisión.
+- [ ] Confirmar CI verde y despliegue público.
+
+**Criterio de cierre:** globo político sencillo con fronteras reconocibles y
+simplificadas, presupuesto de descarga comprobado, tests verdes y publicación
+verificada. La máscara no acredita precisión topológica ni sirve para geocodificar.
 
 ## Fase 2 — Datos
 
@@ -202,14 +227,22 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
   fronteras, 24 solicitudes y 8.312.969 bytes de recursos decodificados. Fuente:
   [before-runtime.json](docs/performance/before-runtime.json). Los marcadores
   miden inicialización de la aplicación, no FPS ni el fin de toda la rasterización.
-- **Presupuesto y resultado:** el build nativo contiene 41.046 bytes de JS y
+- **Referencia del primer motor nativo:** su build contiene 41.046 bytes de JS y
   14.920 bytes con gzip, dentro de los límites de 64 KiB y 24 KiB. La estimación
   inicial de JS/CSS con gzip y mapas es de 590.694 bytes, dentro de 700 KiB.
   La reducción de JavaScript bruto es del 99,1 %. Las métricas exactas y los
   límites de la comparación están en [docs/performance/README.md](docs/performance/README.md).
-- **Cartografía actual:** contornos geográficos dibujados a mano con fines
-  ilustrativos. El PNG indexado se obtiene desde código de ATLAS. La cuadrícula
-  es un recurso de orientación y no representa límites políticos.
+- **Cartografía actual:** Natural Earth 1:110m, fijado a una revisión y con
+  licencia de dominio público. La fuente local contiene 177 entidades y se
+  convierte de antemano en una máscara PNG de tierra/fronteras. Su simplificación
+  es para visualización y no promete exactitud topológica, legal ni de geocodificación.
+  La procedencia se documenta en `docs/cartografia.md`.
+- **Presentación actual:** colores planos, fondo neutro y fronteras activables.
+  Se retiran el relieve ilustrado, las fotografías, la cuadrícula y el modo
+  día/noche de las versiones anteriores para centrar la página en el mapa político.
+- **Presupuestos vigentes:** 40 KiB de JS bruto, 15 KiB con gzip y 44 KiB para la
+  estimación inicial de JS/CSS con gzip y PNG. Son límites de build; las medidas
+  de la revisión cartográfica se registrarán al comprobarla.
 - **Fases:** el trabajo actual sigue dentro del globo de Fase 1. Los parsers,
   datos, viajes y estadísticas de Fase 2 y siguientes no están implementados.
 - **Privacidad:** se mantienen el `.gitignore`, el hook del índice y el control
@@ -226,6 +259,15 @@ dispositivos objetivo; registrar resultados medidos y sus límites.
 - **Pendiente de Alfonso, más adelante:** exportar su historial en su propio
   equipo y decidir zonas de exclusión y lugares públicos. Ninguno de esos datos
   es necesario para desarrollar el motor.
+
+## Validación del globo cartográfico
+
+- `node scripts/prepare-map.mjs --check` reproduce la máscara de 17.081 bytes.
+- `npm run check` y `npm run build` correctos. Pasan las 45 pruebas unitarias.
+- Pasan las 14 pruebas de navegador en escritorio y con emulación móvil. Se
+  comprueban el dibujo, las fronteras, la recuperación WebGL y los controles.
+- La compilación carga 32.757 bytes estimados. [Mediciones](docs/performance/README.md).
+- [Captura del visor](docs/images/globo-cartografico.png).
 
 ## Validación histórica de la primera reescritura nativa
 

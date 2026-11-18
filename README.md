@@ -4,15 +4,15 @@ Un atlas personal para recorrer, en un globo terráqueo 3D, los lugares que has
 visitado. El proyecto se construye por fases a partir de exportaciones de Google
 Maps Timeline, con el tratamiento de datos en tu propio ordenador.
 
-ATLAS dibuja su propia Tierra con WebGL 2, TypeScript y CSS. Los continentes
-se trazan a mano y la textura se genera con código del proyecto. La geografía
-es aproximada y la cuadrícula opcional representa meridianos y paralelos.
-La importación de Timeline y los datos de viajes llegarán en fases posteriores.
+ATLAS muestra un globo político sencillo con WebGL 2, TypeScript y CSS. Los
+continentes y las fronteras proceden de Natural Earth a escala mundial. El mapa
+usa tonos neutros y trazos simples. La importación de Timeline y los datos de
+viajes llegarán en fases posteriores.
 
 La hoja de ruta y las instrucciones de desarrollo están en [PLAN.md](PLAN.md)
 y [AGENTS.md](AGENTS.md).
 
-![Globo de ATLAS con las costas y el relieve ilustrados](docs/images/tierra-original.png)
+![Globo en escala de grises con fronteras simplificadas](docs/images/globo-cartografico.png)
 
 ## Arrancar en local
 
@@ -50,37 +50,34 @@ y revisión de origen en [docs/performance/](docs/performance/).
 
 Arrastra para girar la Tierra y usa la rueda o los controles de zoom para
 acercarte. En móvil puedes usar los gestos táctiles. La interfaz permite volver
-a la vista inicial, inclinar la cámara y activar o desactivar la cuadrícula y la
-iluminación día/noche.
+a la vista inicial, inclinar la cámara y activar o desactivar las fronteras.
 
 El área del globo también se puede enfocar con Tab: las flechas mueven la cámara,
-`+` y `−` controlan el zoom, y `Home` recupera la vista inicial. La rotación lenta
-se detiene al interactuar y respeta la preferencia de movimiento reducido. La
-ayuda, la privacidad y la hoja de ruta se pueden consultar con teclado. Si el
+`+` y `−` controlan el zoom, y `Home` recupera la vista inicial. Puedes activar
+la rotación con su botón. Se detiene al interactuar y respeta la preferencia de
+movimiento reducido. La ayuda, la privacidad y la hoja de ruta se pueden
+consultar con teclado. Si el
 navegador no puede mostrar WebGL, queda disponible una vista accesible y la
 opción de reintentar.
 
-El motor proyecta el dibujo original sobre un elipsoide WGS84. Los contornos
-son ilustrativos y omiten las fronteras oficiales. El PNG indexado se genera
-a partir de las formas, colores y relieve visual definidos en el proyecto.
-[Cómo se genera la Tierra](public/maps/ATLAS-EARTH.md).
+El motor proyecta una máscara cartográfica local sobre el globo. Sus costas y
+límites políticos son aproximados, procedentes del conjunto Natural Earth
+1:110m fijado en el repositorio. La máscara solo sirve para dibujar; no debe
+usarse para determinar el país de una visita junto a una frontera o en el mar.
+[Procedencia, licencia y generación](docs/cartografia.md).
 
 ## Rendimiento
 
-El globo y las estrellas se dibujan con dos llamadas a la GPU por fotograma. La
-cuadrícula se calcula en el shader de la Tierra. El visor reutiliza la malla,
-los buffers y las matrices de cámara, limita el lienzo a 850.000 píxeles y
-dibuja al cambiar la escena. La rotación automática se limita a unos
-30 FPS y se pausa al ocultar el visor. El arrastre y el zoom actualizan la escena
-en el siguiente fotograma disponible.
+La escena del globo se resuelve en una llamada WebGL por fotograma. La máscara
+de tierra y fronteras se genera de antemano y se distribuye como un PNG local.
+El navegador no descarga ni procesa los polígonos de Natural Earth durante la
+navegación. La geometría y los recursos de GPU se reutilizan y la escena se
+dibuja cuando cambia; la animación se pausa cuando el visor no está visible.
 
-La textura se sube a la GPU en RGB565. El navegador libera la imagen decodificada
-y conserva el PNG comprimido para reconstruirla si se pierde el contexto WebGL.
-El planeta opaco se dibuja sobre las estrellas sin un búfer de profundidad.
-
-El build aplica presupuestos de 48 KiB de JavaScript, 20 KiB con gzip y 64 KiB
-para la estimación conjunta de JavaScript, estilos y textura.
-[Medidas y método de comparación](docs/performance/README.md).
+El build controla presupuestos de **40 KiB de JavaScript sin comprimir, 15 KiB
+con gzip y 44 KiB para la estimación conjunta de JS/CSS con gzip y el mapa**.
+La descarga inicial estimada de esta revisión es de **32.757 bytes**.
+[Informes y método de comparación](docs/performance/README.md).
 
 ## Privacidad
 
@@ -143,19 +140,21 @@ scripts/                  Calidad, generación de mapas y mediciones
 data/sample/              Futuro dataset sintético
 data/raw/                 Exportaciones locales, ignoradas por Git
 public/data/              Futura salida agregada y saneada
-public/maps/              Ilustración original de la Tierra
+public/maps/              Máscara cartográfica local para dibujar el globo
 docs/performance/         Informes de tamaño y arranque
 .github/workflows/        CI y publicación
 ```
 
-Para generar o comprobar la textura:
+Para generar o comprobar la máscara cartográfica:
 
 ```sh
-node scripts/prepare-earth.mjs
-node scripts/prepare-earth.mjs --check
+node scripts/prepare-map.mjs
+node scripts/prepare-map.mjs --check
 ```
 
-La compilación usa el PNG versionado. La generación funciona sin red.
+La compilación usa `public/maps/atlas-map.png`. Los polígonos fuente se guardan
+bajo `scripts/geo/` y quedan fuera del sitio publicado. La generación utiliza
+la fuente local fijada y no necesita descargarla de nuevo.
 
 ## Desplegar
 

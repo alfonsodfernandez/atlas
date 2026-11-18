@@ -14,8 +14,7 @@ export interface GlobeStatus {
 
 export interface GlobeProps {
   autoRotate: boolean;
-  gridVisible: boolean;
-  lighting: boolean;
+  bordersVisible: boolean;
   reducedMotion: boolean;
   onInteraction: () => void;
   onStatus: (status: GlobeStatus) => void;

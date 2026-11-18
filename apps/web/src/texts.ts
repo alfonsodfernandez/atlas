@@ -8,32 +8,26 @@ export const texts = {
     navigationLabel: 'Navegación principal',
     layersLabel: 'Capas del globo',
     cameraControlsLabel: 'Controles de cámara',
-    attributionsLabel: 'Sobre la cartografía',
-    cartographyCredit: 'Cartografía original de ATLAS',
+    attributionsLabel: 'Fuente de la cartografía',
+    cartographyCredit: 'Natural Earth',
+    cartographyNote: 'Fronteras simplificadas',
     phasesLabel: 'Fases del proyecto',
     privacy: 'Privacidad',
     accessible: 'Vista accesible',
     help: 'Cómo explorar',
-    phase: 'FASE 01 / EL GLOBO',
-    eyebrow: 'EL MUNDO, A TU RITMO',
+    eyebrow: 'UN MUNDO POR RECORRER',
     title: ['El mundo,', 'tu historia.'],
-    intro:
-      'Un planeta dibujado para explorar. Gira, acércate y encuentra otra perspectiva.',
-    projectAction: 'Conocer el proyecto',
-    emptyLabel: 'TU ATLAS EMPIEZA AQUÍ',
-    emptyDescription:
-      'Todavía no hay viajes cargados. Una Tierra artística, con geografía aproximada y sin fronteras oficiales.',
+    intro: 'Gira el globo y acércate para explorar sus fronteras.',
+    emptyDescription: 'Todavía no hay viajes cargados.',
     globeLabel: 'Globo terráqueo 3D',
     globeInstructions:
-      'Representación artística con geografía aproximada. Arrastra para girar. Usa la rueda o un pellizco para acercarte. Pulsa Tab para acceder a los controles.',
+      'Globo con fronteras simplificadas. Arrastra para girar. Usa la rueda o un pellizco para acercarte. Pulsa Tab para acceder a los controles.',
     home: 'Vista inicial',
     zoomIn: 'Acercar',
     zoomOut: 'Alejar',
     tilt: 'Cambiar inclinación',
     rotation: 'Rotación automática',
-    grid: 'Cuadrícula geográfica',
-    lighting: 'Iluminación día y noche',
-    north: 'NORTE',
+    borders: 'Fronteras',
     reducedMotion:
       'La rotación está pausada por tu preferencia de movimiento reducido.',
     status: {
@@ -92,7 +86,7 @@ export const texts = {
         title: 'Globo',
         subtitle: 'El planeta cobra vida',
         description:
-          'Una Tierra artística dibujada por ATLAS, con geografía aproximada, atmósfera, estrellas e iluminación. Una cuadrícula opcional ayuda a orientarte, sin fronteras oficiales.',
+          'Un globo con fronteras simplificadas de Natural Earth, una superficie neutra y controles de cámara.',
       },
       {
         title: 'Datos',
@@ -135,7 +129,7 @@ export const texts = {
       eyebrow: 'ENCUENTRA OTRA PERSPECTIVA',
       title: 'El mundo está en tus manos.',
       intro:
-        'Todos los movimientos tienen también un control en pantalla. La rotación automática se detiene al interactuar con el globo. La cuadrícula opcional muestra una guía de latitudes y longitudes, sin límites de países.',
+        'Todos los movimientos tienen un control en pantalla. La rotación es opcional y se detiene al interactuar con el globo.',
       items: [
         {
           title: 'Ratón',
@@ -158,18 +152,18 @@ export const texts = {
       eyebrow: 'OTRA FORMA DE EXPLORAR',
       title: 'Atlas, sin barreras.',
       intro:
-        'Este globo es una interpretación artística de la Tierra, con continentes propios y geografía aproximada. No muestra fronteras oficiales, un historial de viajes ni estadísticas personales.',
+        'Este globo muestra las fronteras de Natural Earth, simplificadas para su visualización. Todavía no hay viajes cargados ni estadísticas personales.',
       explorerLabel: 'Explorador',
       cartographyLabel: 'Representación',
-      cartographyDescription: 'Tierra artística, con geografía aproximada',
-      gridLabel: 'Cuadrícula geográfica',
-      gridVisible: 'Visible',
-      gridHidden: 'Oculta',
+      cartographyDescription: 'Globo con fronteras simplificadas',
+      bordersLabel: 'Fronteras',
+      bordersVisible: 'Visibles',
+      bordersHidden: 'Ocultas',
       dataLabel: 'Datos personales',
       noData: 'No se ha cargado ningún historial',
       controls: 'Controles del explorador',
       controlsDescription:
-        'Los botones de la pantalla permiten acercar, alejar, cambiar la inclinación o volver al inicio. También puedes activar la cuadrícula geográfica y la iluminación día y noche. La cuadrícula está oculta al abrir el visor.',
+        'Los botones permiten acercar, alejar, cambiar la inclinación y volver al inicio. Las fronteras se muestran al abrir el visor y puedes ocultarlas. La rotación solo se activa si la eliges.',
       next: 'Lo que llegará después',
       nextDescription:
         'Cuando exista el historial agregado, aquí podrás recorrer tus lugares y viajes como una lista, sin depender del globo.',
