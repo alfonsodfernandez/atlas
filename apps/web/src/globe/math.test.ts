@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createEarthMesh } from './geometry';
 import {
+  angularDistance,
   cameraPose,
   describePosition,
   homeRange,
   lookAt,
   multiply,
   perspective,
+  pickEllipsoid,
   POLAR_RATIO,
   surfacePoint,
   type CameraPose,
@@ -146,5 +148,27 @@ describe('geometría y cámara WGS84', () => {
     expect(targetInView[1]).toBeCloseTo(0, 6);
     expect(targetInView[2]).toBeCloseTo(-Math.hypot(1.5, 3.5, 3), 6);
     expect([view[3], view[7], view[11], view[15]]).toEqual([0, 0, 0, 1]);
+  });
+
+  it('proyecta rayos de pantalla sobre el elipsoide y detecta cuando salen del globo', () => {
+    const pose = cameraPose({
+      longitude: -3.7,
+      latitude: 40.4,
+      range: 2.2,
+      tilt: 0,
+    });
+    const center = pickEllipsoid(pose, 16 / 9, 0, 0);
+    expect(center).not.toBeNull();
+    expect(center!.longitude).toBeCloseTo(-3.7, 3);
+    expect(center!.latitude).toBeCloseTo(40.4, 3);
+
+    const miss = pickEllipsoid(pose, 16 / 9, 0.99, 0.99);
+    expect(miss).toBeNull();
+
+    const reused = { longitude: 0, latitude: 0 };
+    expect(pickEllipsoid(pose, 1, 0, 0, reused)).toBe(reused);
+    expect(angularDistance(-3.7, 40.4, -3.7, 40.4)).toBeCloseTo(0, 10);
+    expect(angularDistance(0, 0, 180, 0)).toBeCloseTo(Math.PI, 10);
+    expect(angularDistance(-3.7, 40.4, 138, 36)).toBeGreaterThan(1.5);
   });
 });

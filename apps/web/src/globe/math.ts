@@ -198,3 +198,93 @@ export function homeRange(aspect: number): number {
     9.4,
   );
 }
+
+export interface GeoPoint {
+  longitude: number;
+  latitude: number;
+}
+
+const INV_POLAR_SQ = 1 / (POLAR_RATIO * POLAR_RATIO);
+const TAN_HALF_FOV = Math.tan(radians(45) / 2);
+
+/**
+ * Intersect a screen ray (ndcX, ndcY in [-1, 1]) with the WGS84 ellipsoid.
+ * Returns null if the ray misses the globe. Reuses `out` when provided.
+ */
+export function pickEllipsoid(
+  pose: CameraPose,
+  aspect: number,
+  ndcX: number,
+  ndcY: number,
+  out: GeoPoint = { longitude: 0, latitude: 0 },
+): GeoPoint | null {
+  const [ex, ey, ez] = pose.eye;
+  const [tx, ty, tz] = pose.target;
+  const [ux, uy, uz] = pose.up;
+  let fx = tx - ex;
+  let fy = ty - ey;
+  let fz = tz - ez;
+  const fLen = Math.hypot(fx, fy, fz);
+  if (fLen <= 0) return null;
+  fx /= fLen;
+  fy /= fLen;
+  fz /= fLen;
+
+  let rx = fy * uz - fz * uy;
+  let ry = fz * ux - fx * uz;
+  let rz = fx * uy - fy * ux;
+  const rLen = Math.hypot(rx, ry, rz);
+  if (rLen <= 0) return null;
+  rx /= rLen;
+  ry /= rLen;
+  rz /= rLen;
+
+  const cuX = ry * fz - rz * fy;
+  const cuY = rz * fx - rx * fz;
+  const cuZ = rx * fy - ry * fx;
+
+  const sx = ndcX * aspect * TAN_HALF_FOV;
+  const sy = ndcY * TAN_HALF_FOV;
+  let dx = fx + rx * sx + cuX * sy;
+  let dy = fy + ry * sx + cuY * sy;
+  let dz = fz + rz * sx + cuZ * sy;
+  const dLen = Math.hypot(dx, dy, dz);
+  if (dLen <= 0) return null;
+  dx /= dLen;
+  dy /= dLen;
+  dz /= dLen;
+
+  const a = dx * dx + dy * dy * INV_POLAR_SQ + dz * dz;
+  const halfB = ex * dx + ey * dy * INV_POLAR_SQ + ez * dz;
+  const c = ex * ex + ey * ey * INV_POLAR_SQ + ez * ez - 1;
+  const disc = halfB * halfB - a * c;
+  if (disc < 0) return null;
+  const t = (-halfB - Math.sqrt(disc)) / a;
+  if (t <= 0) return null;
+
+  const hx = ex + dx * t;
+  const hy = ey + dy * t;
+  const hz = ez + dz * t;
+  const p = Math.hypot(hx, hz);
+  out.longitude = degrees(Math.atan2(-hz, hx));
+  out.latitude = degrees(Math.atan2(hy, p * POLAR_RATIO * POLAR_RATIO));
+  return out;
+}
+
+/** Great-circle angular distance in radians between two geographic coordinates. */
+export function angularDistance(
+  lon1: number,
+  lat1: number,
+  lon2: number,
+  lat2: number,
+): number {
+  const phi1 = radians(lat1);
+  const phi2 = radians(lat2);
+  const dPhi = phi2 - phi1;
+  const dLam = radians(wrapLongitude(lon2 - lon1));
+  const sinDPhi = Math.sin(dPhi * 0.5);
+  const sinDLam = Math.sin(dLam * 0.5);
+  const h =
+    sinDPhi * sinDPhi + Math.cos(phi1) * Math.cos(phi2) * sinDLam * sinDLam;
+  return 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+}

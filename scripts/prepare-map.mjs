@@ -6,7 +6,11 @@ const args = process.argv.slice(2);
 if (args.length > 1 || (args.length === 1 && args[0] !== '--check'))
   throw new Error('Uso: node scripts/prepare-map.mjs [--check]');
 
-const SAMPLES = 4;
+const SAMPLES = 2;
+const LAND_SPREAD = 0.85;
+const BORDER_SPREAD = 0.8;
+const PAD = 6;
+const INF = 1e12;
 const DEMO_COUNTRIES = new Set(['ESP', 'MEX', 'JPN']);
 const variants = [
   {
@@ -19,6 +23,7 @@ const variants = [
     width: 1024,
     height: 512,
     budget: 24 * 1024,
+    levels: 4,
   },
   {
     source: 'ne-50m-countries.json',
@@ -29,19 +34,102 @@ const variants = [
     file: 'atlas-map-detail.png',
     width: 2048,
     height: 1024,
-    budget: 96 * 1024,
+    budget: 64 * 1024,
+    levels: 4,
   },
 ];
 
-function render({ width: WIDTH, height: HEIGHT }, { scale, features }) {
+function edt1d(f, d, v, z, n) {
+  let k = 0;
+  v[0] = 0;
+  z[0] = -INF;
+  z[1] = INF;
+  for (let q = 1; q < n; q += 1) {
+    const fq = f[q];
+    if (fq >= INF) continue;
+    let s;
+    for (;;) {
+      const vk = v[k];
+      s = (fq + q * q - (f[vk] + vk * vk)) / (2 * q - 2 * vk);
+      if (s <= z[k] && k > 0) {
+        k -= 1;
+      } else {
+        break;
+      }
+    }
+    k += 1;
+    v[k] = q;
+    z[k] = s;
+    z[k + 1] = INF;
+  }
+  k = 0;
+  for (let q = 0; q < n; q += 1) {
+    while (z[k + 1] < q) k += 1;
+    const dx = q - v[k];
+    d[q] = dx * dx + f[v[k]];
+  }
+}
+
+/**
+ * Exact 2D Euclidean Distance Transform with horizontal wrap-around across the
+ * antimeridian (±180°). Returns squared distance to the nearest pixel where
+ * `mask[i] === target`.
+ */
+function edt2dWrapped(mask, width, height, target) {
+  const grid = new Float32Array(width * height);
+  const maxDim = Math.max(width + PAD * 2, height);
+  const f = new Float64Array(maxDim);
+  const d = new Float64Array(maxDim);
+  const v = new Int32Array(maxDim);
+  const z = new Float64Array(maxDim + 1);
+
+  for (let x = 0; x < width; x += 1) {
+    let any = false;
+    for (let y = 0; y < height; y += 1) {
+      const hit = mask[y * width + x] === target;
+      f[y] = hit ? 0 : INF;
+      if (hit) any = true;
+    }
+    if (!any) {
+      for (let y = 0; y < height; y += 1) grid[y * width + x] = INF;
+      continue;
+    }
+    edt1d(f, d, v, z, height);
+    for (let y = 0; y < height; y += 1) grid[y * width + x] = d[y];
+  }
+
+  const paddedWidth = width + PAD * 2;
+  for (let y = 0; y < height; y += 1) {
+    const row = y * width;
+    let any = false;
+    for (let p = 0; p < PAD; p += 1) {
+      const leftVal = grid[row + width - PAD + p];
+      const rightVal = grid[row + p];
+      f[p] = leftVal;
+      f[PAD + width + p] = rightVal;
+      if (leftVal < INF || rightVal < INF) any = true;
+    }
+    for (let x = 0; x < width; x += 1) {
+      const val = grid[row + x];
+      f[PAD + x] = val;
+      if (val < INF) any = true;
+    }
+    if (!any) continue;
+    edt1d(f, d, v, z, paddedWidth);
+    for (let x = 0; x < width; x += 1) grid[row + x] = d[PAD + x];
+  }
+  return grid;
+}
+
+function render(
+  { width: WIDTH, height: HEIGHT, levels: MAX_LEVEL },
+  { scale, features },
+) {
   const SCAN_WIDTH = WIDTH * SAMPLES;
   const SCAN_HEIGHT = HEIGHT * SAMPLES;
-  // 16-bit IDs also support sources with more than 255 cartographic features.
   const countries = new Uint16Array(SCAN_WIDTH * SCAN_HEIGHT);
 
   function rasterize(polygon, country) {
-    // Natural Earth already splits polygons along the antimeridian. The
-    // Antarctic ring uses both sides of the projection along the south pole.
     const edges = [];
     let top = SCAN_HEIGHT;
     let bottom = 0;
@@ -81,7 +169,6 @@ function render({ width: WIDTH, height: HEIGHT }, { scale, features }) {
       }
       crossings.sort((a, b) => a - b);
       const offset = row * SCAN_WIDTH;
-      // Even–odd fill counts interior rings as holes.
       for (let index = 0; index < crossings.length; index += 2) {
         const start = Math.max(0, Math.ceil(crossings[index] - 0.5));
         const end = Math.min(SCAN_WIDTH, Math.ceil(crossings[index + 1] - 0.5));
@@ -94,9 +181,6 @@ function render({ width: WIDTH, height: HEIGHT }, { scale, features }) {
     for (const polygon of feature.polygons) rasterize(polygon, index + 1);
   }
 
-  const landCoverage = new Uint8Array(WIDTH * HEIGHT);
-  const borderCoverage = new Uint8Array(WIDTH * HEIGHT);
-  const demoCoverage = new Uint8Array(WIDTH * HEIGHT);
   const demoIds = new Uint8Array(features.length + 1);
   for (const [index, feature] of features.entries()) {
     if (DEMO_COUNTRIES.has(feature.id)) demoIds[index + 1] = 1;
@@ -105,57 +189,132 @@ function render({ width: WIDTH, height: HEIGHT }, { scale, features }) {
     throw new Error(
       'La fuente debe contener las tres entidades de demostración.',
     );
+
+  const totalScan = SCAN_WIDTH * SCAN_HEIGHT;
+  const landMask = new Uint8Array(totalScan);
+  const demoMask = new Uint8Array(totalScan);
+  const borderMask = new Uint8Array(totalScan);
   const differs = (other, country) => other !== 0 && other !== country;
+
   for (let y = 0; y < SCAN_HEIGHT; y += 1) {
     const row = y * SCAN_WIDTH;
     const above = Math.max(y - 1, 0) * SCAN_WIDTH;
     const below = Math.min(y + 1, SCAN_HEIGHT - 1) * SCAN_WIDTH;
-    const target = Math.floor(y / SAMPLES) * WIDTH;
-
     for (let x = 0; x < SCAN_WIDTH; x += 1) {
       const country = countries[row + x];
       if (!country) continue;
-      const pixel = target + Math.floor(x / SAMPLES);
-      landCoverage[pixel] += 1;
-      demoCoverage[pixel] += demoIds[country];
-
+      landMask[row + x] = 1;
+      if (demoIds[country]) demoMask[row + x] = 1;
       const left = x === 0 ? SCAN_WIDTH - 1 : x - 1;
       const right = x === SCAN_WIDTH - 1 ? 0 : x + 1;
-      // A coast only contributes to land coverage. Borders require land from
-      // two different countries, including where the map wraps horizontally.
       if (
         differs(countries[row + left], country) ||
         differs(countries[row + right], country) ||
         differs(countries[above + x], country) ||
         differs(countries[below + x], country)
       ) {
-        borderCoverage[pixel] += 1;
+        borderMask[row + x] = 1;
       }
     }
   }
 
-  const palette = Buffer.alloc(64 * 3);
-  for (let index = 0; index < 64; index += 1) {
-    palette[index * 3] = (index >> 4) * 85;
-    palette[index * 3 + 1] = ((index >> 2) & 3) * 85;
-    palette[index * 3 + 2] = (index & 3) * 85;
-  }
+  const landDistIn = edt2dWrapped(landMask, SCAN_WIDTH, SCAN_HEIGHT, 0);
+  const landDistOut = edt2dWrapped(landMask, SCAN_WIDTH, SCAN_HEIGHT, 1);
+  const demoDistIn = edt2dWrapped(demoMask, SCAN_WIDTH, SCAN_HEIGHT, 0);
+  const demoDistOut = edt2dWrapped(demoMask, SCAN_WIDTH, SCAN_HEIGHT, 1);
+  const borderDist = edt2dWrapped(borderMask, SCAN_WIDTH, SCAN_HEIGHT, 1);
 
+  const invSamples = 1 / SAMPLES;
+  const invSamplesSq = 1 / (SAMPLES * SAMPLES);
   const stride = WIDTH + 1;
   const rows = Buffer.alloc(stride * HEIGHT);
-  for (let y = 0; y < HEIGHT; y += 1) {
-    for (let x = 0; x < WIDTH; x += 1) {
-      const pixel = y * WIDTH + x;
-      const land = Math.round((landCoverage[pixel] * 3) / (SAMPLES * SAMPLES));
-      // Two subpixel sides form a short, soft stroke at world scale.
-      const border = Math.min(
-        3,
-        Math.round((borderCoverage[pixel] * 6) / (SAMPLES * SAMPLES)),
-      );
-      const demo = Math.round((demoCoverage[pixel] * 3) / (SAMPLES * SAMPLES));
-      const index = (land << 4) | (border << 2) | demo;
-      rows[y * stride + 1 + x] = index;
+
+  // Build compact indexed palette (<= 256 entries) for all quantized SDF triples
+  const paletteMap = new Map();
+  const paletteEntries = [];
+  const getColorIndex = (l, b, d) => {
+    const key = (l << 8) | (b << 4) | d;
+    let idx = paletteMap.get(key);
+    if (idx === undefined) {
+      if (paletteEntries.length >= 256) {
+        // Fallback: snap border to nearest even level if palette fills
+        const snappedKey = (l << 8) | ((b & ~1) << 4) | d;
+        idx = paletteMap.get(snappedKey);
+        if (idx !== undefined) return idx;
+        return 0;
+      }
+      idx = paletteEntries.length;
+      paletteMap.set(key, idx);
+      paletteEntries.push([
+        Math.round((l * 255) / MAX_LEVEL),
+        Math.round((b * 255) / MAX_LEVEL),
+        Math.round((d * 255) / MAX_LEVEL),
+      ]);
     }
+    return idx;
+  };
+  // Reserve 0 for deep ocean (0,0,0) and 1 for deep land (255,0,0)
+  getColorIndex(0, 0, 0);
+  getColorIndex(MAX_LEVEL, 0, 0);
+
+  for (let y = 0; y < HEIGHT; y += 1) {
+    const rowOut = y * stride + 1;
+    for (let x = 0; x < WIDTH; x += 1) {
+      let landSdSum = 0;
+      let demoSdSum = 0;
+      let borderMinDist = INF;
+
+      for (let sy = 0; sy < SAMPLES; sy += 1) {
+        const scanRow = (y * SAMPLES + sy) * SCAN_WIDTH + x * SAMPLES;
+        for (let sx = 0; sx < SAMPLES; sx += 1) {
+          const i = scanRow + sx;
+          landSdSum += landMask[i]
+            ? Math.sqrt(landDistIn[i]) - 0.5
+            : -(Math.sqrt(landDistOut[i]) - 0.5);
+          demoSdSum += demoMask[i]
+            ? Math.sqrt(demoDistIn[i]) - 0.5
+            : -(Math.sqrt(demoDistOut[i]) - 0.5);
+          if (borderDist[i] < borderMinDist) borderMinDist = borderDist[i];
+        }
+      }
+
+      const landSd = landSdSum * invSamplesSq * invSamples;
+      const demoSd = demoSdSum * invSamplesSq * invSamples;
+      const bDist = Math.sqrt(borderMinDist) * invSamples;
+
+      const l = Math.max(
+        0,
+        Math.min(
+          MAX_LEVEL,
+          Math.round((0.5 + (landSd / LAND_SPREAD) * 0.5) * MAX_LEVEL),
+        ),
+      );
+      const b = Math.max(
+        0,
+        Math.min(
+          MAX_LEVEL,
+          Math.round((1 - bDist / BORDER_SPREAD) * MAX_LEVEL),
+        ),
+      );
+      const dRaw = Math.max(
+        0,
+        Math.min(
+          MAX_LEVEL,
+          Math.round((0.5 + (demoSd / LAND_SPREAD) * 0.5) * MAX_LEVEL),
+        ),
+      );
+      // Keep demo SDF strictly within land SDF so visited coastlines align seamlessly.
+      const d = Math.min(l, dRaw);
+
+      rows[rowOut + x] = getColorIndex(l, b, d);
+    }
+  }
+
+  const palette = Buffer.alloc(paletteEntries.length * 3);
+  for (let i = 0; i < paletteEntries.length; i += 1) {
+    palette[i * 3] = paletteEntries[i][0];
+    palette[i * 3 + 1] = paletteEntries[i][1];
+    palette[i * 3 + 2] = paletteEntries[i][2];
   }
 
   const header = Buffer.alloc(13);
@@ -206,8 +365,13 @@ for (const variant of variants) {
   )
     throw new Error('Fuente Natural Earth incompatible.');
   const png = render(variant, geometry);
+  process.stdout.write(
+    `ATLAS ${variant.file}: ${variant.width}×${variant.height}, ${png.byteLength} bytes, SHA-256 ${createHash('sha256').update(png).digest('hex')}\n`,
+  );
   if (png.byteLength > variant.budget)
-    throw new Error(`La máscara ${variant.file} supera su presupuesto.`);
+    throw new Error(
+      `La máscara ${variant.file} supera su presupuesto (${png.byteLength} > ${variant.budget}).`,
+    );
   const output = new URL(`../public/maps/${variant.file}`, import.meta.url);
   if (args[0] === '--check') {
     if (!(await readFile(output)).equals(png))
@@ -215,7 +379,4 @@ for (const variant of variants) {
   } else {
     await writeFile(output, png);
   }
-  process.stdout.write(
-    `ATLAS ${variant.file}: ${variant.width}×${variant.height}, ${png.byteLength} bytes, SHA-256 ${createHash('sha256').update(png).digest('hex')}\n`,
-  );
 }

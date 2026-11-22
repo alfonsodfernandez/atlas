@@ -25,7 +25,7 @@ const paths: Record<IconName, string> = {
   arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
 };
 const icon = (name: IconName): string =>
-  `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
+  `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]}</svg>`;
 const escape = (value: string): string =>
   value.replace(
     /[&<>"']/g,
@@ -47,33 +47,39 @@ const cameraButton = (
   `<button class="icon-button" data-camera="${action}" aria-label="${escape(label)}" data-tooltip="${escape(tooltip)}" disabled>${icon(symbol)}</button>`;
 
 function template(): string {
-  const countries = copy.demo.countries
+  const dialogCountries = copy.demo.countries
     .map(
       (country) =>
         `<button class="country-button" data-country="${country.code}" aria-label="${copy.demo.jumpPrefix} ${escape(country.name)}" disabled><span><strong>${escape(country.name)}</strong><small>${escape(country.region)}</small></span>${icon('arrow')}</button>`,
     )
     .join('');
-  return `<a class="skip-link" href="#globo">${escape(copy.skip)}</a>
-  <div class="atlas-app">
-    <header class="app-header">
-      <a class="wordmark" href="#globo" aria-label="${escape(copy.brand)}"><svg viewBox="0 0 137 28" aria-hidden="true"><path d="M2 23 11 3l9 20M5.5 15.5h11M29 4h20M39 4v19M60 4v19h16M85 23l9-20 9 20M88.5 15.5h11M132 6c-4-4-16-4-16 3 0 7 17 2 17 10 0 7-14 7-19 2"/></svg><span class="sr-only">ATLAS</span></a>
-      <div class="header-tools"><button class="demo-trigger" data-dialog="demo" aria-label="${escape(copy.demoTrigger)}" data-tooltip="${escape(copy.tooltips.demo)}"><span class="demo-dot" aria-hidden="true"></span><span>3 países</span><span class="demo-badge">Ejemplo</span></button><button class="icon-button help-button" data-dialog="help" aria-label="${escape(copy.help)}" data-tooltip="${escape(copy.tooltips.help)}">${icon('help')}</button></div>
-    </header>
-    <main class="explorer" id="contenido">
-      <h1 class="sr-only">${escape(copy.pageTitle)}</h1>
-      <section id="globo" class="globe-stage" role="region" aria-label="${escape(copy.globeLabel)}" aria-describedby="globe-instructions" tabindex="0" data-globe-state="loading"><div class="globe-viewport"><div class="native-globe"></div></div><div class="globe-fallback" hidden><h2>${escape(copy.error.title)}</h2><p class="error-description">${escape(copy.error.description)}</p><div><button class="primary-button" data-action="retry">${escape(copy.retry)}</button><button class="text-button" data-dialog="accessible">${escape(copy.accessible)}</button></div></div></section>
-      <p class="sr-only" id="globe-instructions">${escape(copy.globeInstructions)}</p>
-      <div class="stage-controls" role="group" aria-label="${escape(copy.controlsLabel)}"><div class="camera-controls">${cameraButton('home', copy.home, copy.tooltips.home, 'home')}<span class="control-divider" aria-hidden="true"></span>${cameraButton('zoomOut', copy.zoomOut, copy.tooltips.zoomOut, 'minus')}${cameraButton('zoomIn', copy.zoomIn, copy.tooltips.zoomIn, 'plus')}${cameraButton('tilt', copy.tilt, copy.tooltips.tilt, 'tilt')}<button class="icon-button" data-action="rotation" aria-label="${escape(copy.rotation)}" aria-pressed="false" data-tooltip="${escape(copy.tooltips.pauseRotation)}" disabled>${icon('pause')}</button></div><button class="border-switch" role="switch" data-action="borders" aria-label="${escape(copy.borders)}" aria-checked="true" data-tooltip="${escape(copy.tooltips.hideBorders)}" disabled><span>${escape(copy.borders)}</span><span class="switch-track" aria-hidden="true"><span></span></span></button></div>
-      <div class="sr-only" role="status" aria-live="polite" data-testid="globe-status" data-state="loading">${escape(copy.status.loading)}</div><div class="sr-only" role="status" aria-live="polite" data-testid="selection-status"></div>
-    </main>
-    <footer class="app-footer"><div class="credits" aria-label="${escape(copy.attributionsLabel)}"><a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">${escape(copy.cartographyCredit)}</a><span>${escape(copy.cartographyNote)}</span></div><span class="keyboard-hint" aria-hidden="true">${escape(copy.keyboardHint)}</span></footer>
-    <dialog class="info-dialog" aria-labelledby="dialog-title"><div class="dialog-content"><button class="dialog-close icon-button" data-action="close-dialog" aria-label="${escape(copy.close)}">${icon('close')}</button><h2 id="dialog-title" tabindex="-1"></h2>
-      <section data-panel="help" hidden><p class="dialog-intro">${escape(copy.helpDialog.intro)}</p>${items(copy.helpDialog.items)}<nav class="help-links" aria-label="${escape(copy.help)}"><button class="text-button" data-dialog="privacy">${escape(copy.privacy)}${icon('arrow')}</button><button class="text-button" data-dialog="accessible">${escape(copy.accessible)}${icon('arrow')}</button></nav></section>
-      <section data-panel="privacy" hidden><p class="dialog-intro">${escape(copy.privacyDialog.intro)}</p>${items(copy.privacyDialog.items)}<button class="text-button back-button" data-dialog="help">${escape(copy.back)}</button></section>
-      <section data-panel="accessible" hidden><p class="dialog-intro">${escape(copy.accessibleDialog.intro)}</p><dl class="accessible-summary"><div><dt>${escape(copy.accessibleDialog.statusLabel)}</dt><dd data-summary="status"></dd></div><div><dt>${escape(copy.accessibleDialog.bordersLabel)}</dt><dd data-summary="borders"></dd></div><div><dt>${escape(copy.accessibleDialog.demoLabel)}</dt><dd data-summary="demo"></dd></div><div><dt>${escape(copy.accessibleDialog.motionLabel)}</dt><dd data-summary="motion"></dd></div></dl><button class="primary-button" data-dialog="demo">${escape(copy.accessibleDialog.openDemo)}</button><button class="text-button back-button" data-dialog="help">${escape(copy.back)}</button></section>
-      <section data-panel="demo" hidden><p class="dialog-intro">${escape(copy.demo.intro)}</p><div class="demo-countries">${countries}</div><div class="demo-option"><div><strong>${escape(copy.demo.toggle)}</strong><p>${escape(copy.demo.toggleDescription)}</p></div><button class="compact-switch" role="switch" data-action="demo" aria-label="${escape(copy.demo.toggle)}" aria-checked="true" disabled><span class="switch-track" aria-hidden="true"><span></span></span></button></div></section>
-    </div></dialog>
-  </div><div id="control-tooltip" class="control-tooltip" role="tooltip" hidden></div>`;
+  const indexCountries = copy.demo.countries
+    .map(
+      (country) =>
+        `<button class="index-item" data-index-country="${country.code}" disabled><span class="index-code">${escape(country.code)}</span><span>${escape(country.name)}</span></button>`,
+    )
+    .join('');
+  return (
+    `<a class="skip-link" href="#globo">${escape(copy.skip)}</a>` +
+    `<div class="atlas-app">` +
+    `<main class="explorer" id="contenido">` +
+    `<h1 class="sr-only">${escape(copy.pageTitle)}</h1>` +
+    `<section id="globo" class="globe-stage" role="region" aria-label="${escape(copy.globeLabel)}" aria-describedby="globe-instructions" tabindex="0" data-globe-state="loading"><div class="globe-viewport"><div class="native-globe"></div></div><div class="globe-fallback" hidden><h2>${escape(copy.error.title)}</h2><p class="error-description">${escape(copy.error.description)}</p><div class="fallback-actions"><button class="primary-button" data-action="retry">${escape(copy.retry)}</button><button class="text-button" data-dialog="accessible">${escape(copy.accessible)}</button></div></div></section>` +
+    `<p class="sr-only" id="globe-instructions">${escape(copy.globeInstructions)}</p>` +
+    `<div class="sr-only" role="status" aria-live="polite" data-testid="globe-status" data-state="loading">${escape(copy.status.loading)}</div><div class="sr-only" role="status" aria-live="polite" data-testid="selection-status"></div>` +
+    `</main>` +
+    `<header class="app-header"><div class="brand-cluster"><a class="wordmark" href="#globo" aria-label="${escape(copy.brand)}"><svg viewBox="0 0 137 28" aria-hidden="true"><path d="M2 23 11 3l9 20M5.5 15.5h11M29 4h20M39 4v19M60 4v19h16M85 23l9-20 9 20M88.5 15.5h11M132 6c-4-4-16-4-16 3 0 7 17 2 17 10 0 7-14 7-19 2"/></svg><span class="sr-only">ATLAS</span></a><span class="hairline-v" aria-hidden="true"></span><button class="demo-trigger" data-dialog="demo" aria-label="${escape(copy.demoTrigger)}" data-tooltip="${escape(copy.tooltips.demo)}"><span class="demo-dot" aria-hidden="true"></span><span>3 países</span><span class="demo-note">Ejemplo</span></button></div><div class="header-tools"><button class="icon-button help-button" data-dialog="help" aria-label="${escape(copy.help)}" data-tooltip="${escape(copy.tooltips.help)}">${icon('help')}</button></div></header>` +
+    `<nav class="country-index" aria-label="${escape(copy.demo.title)}">${indexCountries}</nav>` +
+    `<div class="hover-readout" data-testid="hover-readout" aria-hidden="true" hidden></div>` +
+    `<div class="stage-controls" role="group" aria-label="${escape(copy.controlsLabel)}"><div class="camera-controls">${cameraButton('home', copy.home, copy.tooltips.home, 'home')}<span class="hairline-v" aria-hidden="true"></span>${cameraButton('zoomOut', copy.zoomOut, copy.tooltips.zoomOut, 'minus')}${cameraButton('zoomIn', copy.zoomIn, copy.tooltips.zoomIn, 'plus')}${cameraButton('tilt', copy.tilt, copy.tooltips.tilt, 'tilt')}<button class="icon-button" data-action="rotation" aria-label="${escape(copy.rotation)}" aria-pressed="false" data-tooltip="${escape(copy.tooltips.pauseRotation)}" disabled>${icon('pause')}</button></div><span class="hairline-v controls-sep" aria-hidden="true"></span><button class="border-switch" role="switch" data-action="borders" aria-label="${escape(copy.borders)}" aria-checked="true" data-tooltip="${escape(copy.tooltips.hideBorders)}" disabled><span>${escape(copy.borders)}</span><span class="switch-track" aria-hidden="true"><span></span></span></button></div>` +
+    `<footer class="app-footer"><div class="credits" aria-label="${escape(copy.attributionsLabel)}"><a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">${escape(copy.cartographyCredit)}</a><span class="credit-dot" aria-hidden="true">·</span><span>${escape(copy.cartographyNote)}</span></div><span class="keyboard-hint" aria-hidden="true">${escape(copy.keyboardHint)}</span></footer>` +
+    `<dialog class="info-dialog" aria-labelledby="dialog-title"><div class="dialog-content"><button class="dialog-close icon-button" data-action="close-dialog" aria-label="${escape(copy.close)}">${icon('close')}</button><h2 id="dialog-title" tabindex="-1"></h2>` +
+    `<section data-panel="help" hidden><p class="dialog-intro">${escape(copy.helpDialog.intro)}</p>${items(copy.helpDialog.items)}<nav class="help-links" aria-label="${escape(copy.help)}"><button class="text-button" data-dialog="privacy">${escape(copy.privacy)}${icon('arrow')}</button><button class="text-button" data-dialog="accessible">${escape(copy.accessible)}${icon('arrow')}</button></nav></section>` +
+    `<section data-panel="privacy" hidden><p class="dialog-intro">${escape(copy.privacyDialog.intro)}</p>${items(copy.privacyDialog.items)}<button class="text-button back-button" data-dialog="help">${escape(copy.back)}</button></section>` +
+    `<section data-panel="accessible" hidden><p class="dialog-intro">${escape(copy.accessibleDialog.intro)}</p><dl class="accessible-summary"><div><dt>${escape(copy.accessibleDialog.statusLabel)}</dt><dd data-summary="status"></dd></div><div><dt>${escape(copy.accessibleDialog.bordersLabel)}</dt><dd data-summary="borders"></dd></div><div><dt>${escape(copy.accessibleDialog.demoLabel)}</dt><dd data-summary="demo"></dd></div><div><dt>${escape(copy.accessibleDialog.motionLabel)}</dt><dd data-summary="motion"></dd></div></dl><button class="primary-button" data-dialog="demo">${escape(copy.accessibleDialog.openDemo)}</button><button class="text-button back-button" data-dialog="help">${escape(copy.back)}</button></section>` +
+    `<section data-panel="demo" hidden><p class="dialog-intro">${escape(copy.demo.intro)}</p><div class="demo-countries">${dialogCountries}</div><div class="demo-option"><div><strong>${escape(copy.demo.toggle)}</strong><p>${escape(copy.demo.toggleDescription)}</p></div><button class="compact-switch" role="switch" data-action="demo" aria-label="${escape(copy.demo.toggle)}" aria-checked="true" disabled><span class="switch-track" aria-hidden="true"><span></span></span></button></div></section>` +
+    `</div></dialog></div><div id="control-tooltip" class="control-tooltip" role="tooltip" hidden></div>`
+  );
 }
 
 export function mountAtlas(root: HTMLElement): () => void {
@@ -91,12 +97,16 @@ export function mountAtlas(root: HTMLElement): () => void {
   const host = query<HTMLDivElement>('.native-globe');
   const statusNode = query<HTMLElement>('[data-testid="globe-status"]');
   const selectionNode = query<HTMLElement>('[data-testid="selection-status"]');
+  const hoverReadout = query<HTMLElement>('[data-testid="hover-readout"]');
   const fallback = query<HTMLElement>('.globe-fallback');
   const errorDescription = query<HTMLElement>('.error-description');
   const cameraButtons =
     root.querySelectorAll<HTMLButtonElement>('[data-camera]');
   const countryButtons =
     root.querySelectorAll<HTMLButtonElement>('[data-country]');
+  const indexButtons = root.querySelectorAll<HTMLButtonElement>(
+    '[data-index-country]',
+  );
   const rotationButton = query<HTMLButtonElement>('[data-action="rotation"]');
   const bordersButton = query<HTMLButtonElement>('[data-action="borders"]');
   const demoButton = query<HTMLButtonElement>('[data-action="demo"]');
@@ -117,6 +127,8 @@ export function mountAtlas(root: HTMLElement): () => void {
   let autoRotate = !reducedMotion;
   let bordersVisible = true;
   let demoVisible = true;
+  let activeCountry: string | null = null;
+  let hoveredCountry: string | null = null;
   let activeDialog: DialogKind | null = null;
   let returnFocus: HTMLElement | null = null;
   let renderer: GlobeRenderer | null = null;
@@ -139,8 +151,8 @@ export function mountAtlas(root: HTMLElement): () => void {
     );
     let y =
       box.top < window.innerHeight / 2
-        ? box.bottom + 9
-        : box.top - tooltip.offsetHeight - 9;
+        ? box.bottom + 8
+        : box.top - tooltip.offsetHeight - 8;
     y = Math.min(window.innerHeight - tooltip.offsetHeight - 8, Math.max(8, y));
     tooltip.style.left = `${Math.round(x)}px`;
     tooltip.style.top = `${Math.round(y)}px`;
@@ -168,10 +180,27 @@ export function mountAtlas(root: HTMLElement): () => void {
       if (document.activeElement !== tooltipTarget) hideTooltip();
     }, 120);
   };
+  const syncIndexState = (): void => {
+    for (const button of indexButtons) {
+      const code = button.dataset.indexCountry ?? '';
+      button.classList.toggle('is-active', code === activeCountry);
+      button.classList.toggle('is-hovered', code === hoveredCountry);
+    }
+    const shown = hoveredCountry
+      ? copy.demo.countries.find((item) => item.code === hoveredCountry)
+      : undefined;
+    if (shown && demoVisible) {
+      setText(hoverReadout, `${shown.name} · ${shown.region} · Ejemplo`);
+      hoverReadout.hidden = false;
+    } else {
+      hoverReadout.hidden = true;
+    }
+  };
   const updateControls = (): void => {
     const ready = status.state === 'ready';
     for (const button of cameraButtons) button.disabled = !ready;
     for (const button of countryButtons) button.disabled = !ready;
+    for (const button of indexButtons) button.disabled = !ready;
     rotationButton.disabled = !ready || reducedMotion;
     const rotating = autoRotate && ready && !reducedMotion;
     rotationButton.setAttribute('aria-pressed', String(rotating));
@@ -206,6 +235,7 @@ export function mountAtlas(root: HTMLElement): () => void {
         ? copy.accessibleDialog.motionActive
         : copy.accessibleDialog.motionPaused,
     );
+    syncIndexState();
     if (tooltipTarget) showTooltip(tooltipTarget);
   };
   const updateStatus = (next: GlobeStatus): void => {
@@ -254,6 +284,17 @@ export function mountAtlas(root: HTMLElement): () => void {
     if (restoreFocus) returnFocus?.focus({ preventScroll: true });
     returnFocus = null;
   };
+  const selectCountry = (code: string, focusStage = true): void => {
+    const country = copy.demo.countries.find((item) => item.code === code);
+    if (!country || !renderer || status.state !== 'ready') return;
+    activeCountry = country.code;
+    if (dialog.open) closeDialog(false);
+    if (focusStage) stage.focus({ preventScroll: true });
+    stopRotation();
+    renderer.goTo(country.longitude, country.latitude);
+    setText(selectionNode, `${country.name}. ${copy.demo.selected}.`);
+    syncIndexState();
+  };
   const initializeGlobe = (): void => {
     if (disposed) return;
     const ownGeneration = ++generation;
@@ -270,6 +311,15 @@ export function mountAtlas(root: HTMLElement): () => void {
         onInteraction: stopRotation,
         onStatus: (next: GlobeStatus) => {
           if (!disposed && ownGeneration === generation) updateStatus(next);
+        },
+        onHoverCountry: (code: string | null) => {
+          if (disposed || ownGeneration !== generation) return;
+          hoveredCountry = code;
+          syncIndexState();
+        },
+        onSelectCountry: (code: string) => {
+          if (disposed || ownGeneration !== generation) return;
+          selectCountry(code, false);
         },
       });
     } catch {
@@ -295,15 +345,9 @@ export function mountAtlas(root: HTMLElement): () => void {
         openDialog(kind, button);
         return;
       }
-      const country = copy.demo.countries.find(
-        (item) => item.code === button.dataset.country,
-      );
-      if (country && renderer && status.state === 'ready') {
-        closeDialog(false);
-        stage.focus({ preventScroll: true });
-        stopRotation();
-        renderer.goTo(country.longitude, country.latitude);
-        setText(selectionNode, `${country.name}. ${copy.demo.selected}.`);
+      const countryCode = button.dataset.country ?? button.dataset.indexCountry;
+      if (countryCode) {
+        selectCountry(countryCode, Boolean(button.dataset.country));
         return;
       }
       const action = button.dataset.action;
@@ -320,6 +364,7 @@ export function mountAtlas(root: HTMLElement): () => void {
         updateControls();
       } else if (action === 'demo') {
         demoVisible = !demoVisible;
+        if (!demoVisible) activeCountry = null;
         renderer?.setDemoVisible(demoVisible);
         updateControls();
       } else if (renderer) {
@@ -330,8 +375,10 @@ export function mountAtlas(root: HTMLElement): () => void {
           command === 'zoomOut' ||
           command === 'tilt'
         ) {
+          if (command === 'home') activeCountry = null;
           stopRotation();
           renderer[command]();
+          syncIndexState();
         }
       }
     },
@@ -374,8 +421,11 @@ export function mountAtlas(root: HTMLElement): () => void {
         return;
       event.preventDefault();
       stopRotation();
-      if (key === 'Home') renderer.home();
-      else if (key === '+' || key === '=') renderer.zoomIn();
+      if (key === 'Home') {
+        activeCountry = null;
+        renderer.home();
+        syncIndexState();
+      } else if (key === '+' || key === '=') renderer.zoomIn();
       else if (key === '-' || key === '−' || key === '_') renderer.zoomOut();
       else
         renderer.rotate(
