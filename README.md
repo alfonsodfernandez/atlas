@@ -70,8 +70,8 @@ instrucciones, la privacidad y la alternativa accesible. Si WebGL no está
 disponible, la información y el reintento siguen siendo accesibles.
 
 La primera vista carga una máscara SDF local de 1024 × 512 píxeles derivada de
-Natural Earth 1:110m (22.011 bytes). Al acercarte, el visor solicita una máscara
-SDF adicional de 2048 × 1024 procedente de la fuente 1:50m (63.621 bytes) para
+Natural Earth 1:110m (22.909 bytes). Al acercarte, el visor solicita una máscara
+SDF adicional de 2048 × 1024 procedente de la fuente 1:50m (65.459 bytes) para
 reconstruir costas, fronteras y el relleno de ejemplo con nitidez analítica.
 Los polígonos se procesan al generar los recursos; el navegador utiliza los PNG.
 [Procedencia, licencia y generación](docs/cartografia.md).

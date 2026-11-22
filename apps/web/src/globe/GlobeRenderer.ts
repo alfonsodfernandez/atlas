@@ -103,28 +103,28 @@ export default class GlobeRenderer implements GlobeHandle {
   private readonly pickB: GeoPoint = { longitude: 0, latitude: 0 };
   private readonly onAnimationFrame = (time: number) => this.frame(time);
   private gl: WebGL2RenderingContext | null = null;
-  private graphics: Graphics | null = null;
+  private gpu: Graphics | null = null;
   private activeMap: MapSource | null = null;
   private pendingMap: MapSource | null = null;
   private pickMask: Uint8Array | null = null;
   private hover: string | null = null;
   private uploading = false;
-  private detailRequested = false;
+  private detailAsked = false;
   private intro = true;
-  private transition: Transition | null = null;
+  private anim: Transition | null = null;
   private vx = 0;
   private vy = 0;
   private dragAt = 0;
-  private imageLoaded = false;
+  private loaded = false;
   private ready = false;
-  private destroyed = false;
-  private contextLost = false;
-  private intersecting = true;
+  private dead = false;
+  private lost = false;
+  private visible = true;
   private raf = 0;
   private lastFrame = 0;
   private dirty = true;
   private frames = 0;
-  private pixelRatio = 1;
+  private dpr = 1;
   private cssWidth = 1;
   private cssHeight = 1;
   private moved = false;
@@ -181,7 +181,7 @@ export default class GlobeRenderer implements GlobeHandle {
   }
 
   private report(state: GlobeStatus['state'], message?: string): void {
-    if (this.destroyed) return;
+    if (this.dead) return;
     const next: GlobeStatus = {
       state,
       ...(message ? { message } : {}),
@@ -278,7 +278,7 @@ export default class GlobeRenderer implements GlobeHandle {
       texture: null,
       indexCount: mesh.indices.length,
     };
-    this.graphics = graphics;
+    this.gpu = graphics;
     this.gpuCleanup.push(() => {
       if (graphics.texture) gl.deleteTexture(graphics.texture);
     });
@@ -299,7 +299,7 @@ export default class GlobeRenderer implements GlobeHandle {
 
   private releaseGraphics(): void {
     for (const cleanup of this.gpuCleanup.splice(0)) cleanup();
-    this.graphics = null;
+    this.gpu = null;
   }
 
   private extractPickMask(bitmap: ImageBitmap): void {
@@ -351,12 +351,12 @@ export default class GlobeRenderer implements GlobeHandle {
     if (this.hover === code) return;
     this.hover = code;
     this.host.dataset.hoveredCountry = code ?? '';
-    if (this.graphics && !this.contextLost) {
+    if (this.gpu && !this.lost) {
       this.gl!.uniform1i(
-        this.graphics.hoverUniform,
+        this.gpu.hoverUniform,
         code ? (HOVER_ID[code] ?? 0) : 0,
       );
-      this.invalidate();
+      this.redraw();
     }
     this.options.onHoverCountry?.(code);
   }
@@ -390,7 +390,7 @@ export default class GlobeRenderer implements GlobeHandle {
   }
 
   private queueMap(source: MapSource): void {
-    if (this.destroyed || (this.activeMap?.detail && !source.detail)) return;
+    if (this.dead || (this.activeMap?.detail && !source.detail)) return;
     if (!this.pendingMap || source.detail || !this.pendingMap.detail)
       this.pendingMap = source;
     void this.uploadMaps();
@@ -399,9 +399,9 @@ export default class GlobeRenderer implements GlobeHandle {
   private async uploadMaps(): Promise<void> {
     if (
       this.uploading ||
-      this.contextLost ||
-      !this.graphics ||
-      this.destroyed ||
+      this.lost ||
+      !this.gpu ||
+      this.dead ||
       this.gl?.isContextLost()
     )
       return;
@@ -409,13 +409,13 @@ export default class GlobeRenderer implements GlobeHandle {
     try {
       while (
         this.pendingMap &&
-        !this.contextLost &&
-        !this.destroyed &&
-        this.graphics &&
+        !this.lost &&
+        !this.dead &&
+        this.gpu &&
         !this.gl?.isContextLost()
       ) {
         const source = this.pendingMap;
-        const graphics = this.graphics;
+        const graphics = this.gpu;
         try {
           if (!(await this.uploadTexture(source, graphics))) break;
           if (this.pendingMap === source) this.pendingMap = null;
@@ -423,7 +423,7 @@ export default class GlobeRenderer implements GlobeHandle {
           if (this.pendingMap === source) this.pendingMap = null;
           if (this.abort.signal.aborted) break;
           if (source.detail && this.activeMap && !this.activeMap.detail) {
-            if (!this.imageLoaded) this.pendingMap = this.activeMap;
+            if (!this.loaded) this.pendingMap = this.activeMap;
             else
               this.report(
                 'ready',
@@ -441,9 +441,9 @@ export default class GlobeRenderer implements GlobeHandle {
       this.uploading = false;
       if (
         this.pendingMap &&
-        !this.contextLost &&
-        !this.destroyed &&
-        this.graphics &&
+        !this.lost &&
+        !this.dead &&
+        this.gpu &&
         !this.gl?.isContextLost()
       )
         void this.uploadMaps();
@@ -455,7 +455,7 @@ export default class GlobeRenderer implements GlobeHandle {
     graphics: Graphics,
   ): Promise<boolean> {
     const gl = this.gl;
-    if (!gl || this.contextLost) return false;
+    if (!gl || this.lost) return false;
     const bitmap = await createImageBitmap(source.blob, {
       imageOrientation: 'none',
       premultiplyAlpha: 'none',
@@ -464,7 +464,7 @@ export default class GlobeRenderer implements GlobeHandle {
     try {
       if (
         this.abort.signal.aborted ||
-        this.graphics !== graphics ||
+        this.gpu !== graphics ||
         gl.isContextLost()
       )
         return false;
@@ -511,8 +511,8 @@ export default class GlobeRenderer implements GlobeHandle {
       }
       this.activeMap = source;
       this.host.dataset.mapDetail = source.detail ? 'detail' : 'base';
-      this.imageLoaded = true;
-      this.invalidate();
+      this.loaded = true;
+      this.redraw();
       return true;
     } finally {
       bitmap.close();
@@ -543,10 +543,10 @@ export default class GlobeRenderer implements GlobeHandle {
       !this.ready ||
       !this.moved ||
       this.orbit.range > DETAIL_RANGE ||
-      this.detailRequested
+      this.detailAsked
     )
       return;
-    this.detailRequested = true;
+    this.detailAsked = true;
     void fetch(`${import.meta.env.BASE_URL}maps/atlas-map-detail.png`, {
       signal: this.abort.signal,
     })
@@ -556,7 +556,7 @@ export default class GlobeRenderer implements GlobeHandle {
         if (!this.abort.signal.aborted) this.queueMap({ blob, detail: true });
       })
       .catch(() => {
-        if (!this.abort.signal.aborted && !this.contextLost && this.ready)
+        if (!this.abort.signal.aborted && !this.lost && this.ready)
           this.report(
             'ready',
             'El detalle adicional no está disponible. Se mantiene el mapa base.',
@@ -734,22 +734,22 @@ export default class GlobeRenderer implements GlobeHandle {
     );
     listen(cv, 'webglcontextlost', ((event: Event) => {
       event.preventDefault();
-      this.contextLost = true;
+      this.lost = true;
       this.gpuCleanup.length = 0;
-      this.graphics = null;
+      this.gpu = null;
       cancelAnimationFrame(this.raf);
       this.raf = 0;
       this.ready = false;
-      this.imageLoaded = false;
+      this.loaded = false;
       this.report(
         'error',
         'Se ha interrumpido el renderizado. Puedes volver a intentarlo.',
       );
     }) as EventListener);
     listen(cv, 'webglcontextrestored', (() => {
-      if (this.destroyed) return;
+      if (this.dead) return;
       try {
-        this.contextLost = false;
+        this.lost = false;
         this.createGraphics();
         this.resize();
         if (this.activeMap) this.queueMap(this.activeMap);
@@ -767,41 +767,41 @@ export default class GlobeRenderer implements GlobeHandle {
       if (document.hidden) {
         cancelAnimationFrame(this.raf);
         this.raf = 0;
-      } else this.invalidate();
+      } else this.redraw();
     }) as EventListener);
     const resize = new ResizeObserver(() => this.resize());
     resize.observe(this.host);
     this.cleanup.push(() => resize.disconnect());
     const intersection = new IntersectionObserver((entries) => {
       const entry = entries[entries.length - 1];
-      this.intersecting = entry?.isIntersecting ?? true;
+      this.visible = entry?.isIntersecting ?? true;
       this.lastFrame = 0;
-      if (!this.intersecting) {
+      if (!this.visible) {
         cancelAnimationFrame(this.raf);
         this.raf = 0;
-      } else this.invalidate();
+      } else this.redraw();
     });
     intersection.observe(this.host);
     this.cleanup.push(() => intersection.disconnect());
   }
 
   private resize(): void {
-    if (this.destroyed) return;
+    if (this.dead) return;
     const size = this.host.getBoundingClientRect();
     this.cssWidth = Math.max(size.width, 1);
     this.cssHeight = Math.max(size.height, 1);
-    this.pixelRatio = Math.min(
+    this.dpr = Math.min(
       window.devicePixelRatio || 1,
       2,
       Math.sqrt(MAX_PIXELS / (this.cssWidth * this.cssHeight)),
     );
-    const width = Math.max(1, Math.floor(this.cssWidth * this.pixelRatio));
-    const height = Math.max(1, Math.floor(this.cssHeight * this.pixelRatio));
+    const width = Math.max(1, Math.floor(this.cssWidth * this.dpr));
+    const height = Math.max(1, Math.floor(this.cssHeight * this.dpr));
     if (this.canvas.width !== width || this.canvas.height !== height) {
       this.canvas.width = width;
       this.canvas.height = height;
     }
-    if (!this.contextLost) this.gl?.viewport(0, 0, width, height);
+    if (!this.lost) this.gl?.viewport(0, 0, width, height);
     perspective(
       this.projection,
       this.cssWidth / this.cssHeight,
@@ -810,17 +810,17 @@ export default class GlobeRenderer implements GlobeHandle {
     );
     if (!this.moved) {
       const range = homeRange(this.cssWidth / this.cssHeight);
-      if (this.transition) this.transition.target.range = range;
+      if (this.anim) this.anim.target.range = range;
       else
         this.orbit.range =
           range * (this.intro && !this.options.reducedMotion ? 1.055 : 1);
     }
     this.describe();
-    this.invalidate();
+    this.redraw();
   }
 
   private interact(): void {
-    this.transition = null;
+    this.anim = null;
     this.vx = 0;
     this.vy = 0;
     this.intro = false;
@@ -832,7 +832,7 @@ export default class GlobeRenderer implements GlobeHandle {
   private changed(): void {
     this.orbit.longitude = wrapLongitude(this.orbit.longitude);
     this.describe();
-    this.invalidate();
+    this.redraw();
     this.loadDetail();
   }
 
@@ -847,7 +847,7 @@ export default class GlobeRenderer implements GlobeHandle {
     this.host.dataset.cameraPitch = (-90 + degrees(this.orbit.tilt)).toFixed(2);
   }
 
-  private invalidate(): void {
+  private redraw(): void {
     this.dirty = true;
     this.scheduleFrame();
   }
@@ -855,11 +855,11 @@ export default class GlobeRenderer implements GlobeHandle {
   private scheduleFrame(): void {
     if (
       !this.raf &&
-      !this.destroyed &&
-      !this.contextLost &&
-      this.imageLoaded &&
-      this.graphics &&
-      this.intersecting &&
+      !this.dead &&
+      !this.lost &&
+      this.loaded &&
+      this.gpu &&
+      this.visible &&
       !document.hidden
     )
       this.raf = requestAnimationFrame(this.onAnimationFrame);
@@ -867,14 +867,8 @@ export default class GlobeRenderer implements GlobeHandle {
 
   private frame(time: number): void {
     this.raf = 0;
-    if (
-      this.destroyed ||
-      this.contextLost ||
-      !this.intersecting ||
-      document.hidden
-    )
-      return;
-    const animating = this.transition !== null;
+    if (this.dead || this.lost || !this.visible || document.hidden) return;
+    const animating = this.anim !== null;
     const coast = this.coasting();
     const rotating =
       this.ready &&
@@ -893,8 +887,8 @@ export default class GlobeRenderer implements GlobeHandle {
     }
     this.dirty = false;
     const o = this.orbit;
-    if (this.transition) {
-      const tr = this.transition;
+    if (this.anim) {
+      const tr = this.anim;
       if (!tr.started) tr.started = time;
       const p = clamp((time - tr.started) / tr.duration, 0, 1);
       const ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
@@ -909,7 +903,7 @@ export default class GlobeRenderer implements GlobeHandle {
         MAX_RANGE,
       );
       o.tilt = tr.tilt + (tr.target.tilt - tr.tilt) * ease;
-      if (p === 1) this.transition = null;
+      if (p === 1) this.anim = null;
       this.describe();
       this.loadDetail();
     } else if (coast) {
@@ -942,7 +936,7 @@ export default class GlobeRenderer implements GlobeHandle {
           5,
         );
       }
-      if (this.imageLoaded && !this.ready) {
+      if (this.loaded && !this.ready) {
         this.ready = true;
         this.report('ready');
         if (this.intro) {
@@ -970,7 +964,7 @@ export default class GlobeRenderer implements GlobeHandle {
       return;
     }
     if (
-      this.transition ||
+      this.anim ||
       this.coasting() ||
       (this.ready && this.options.autoRotate && !this.options.reducedMotion)
     )
@@ -986,11 +980,11 @@ export default class GlobeRenderer implements GlobeHandle {
       o.latitude = target.latitude;
       o.range = target.range;
       o.tilt = target.tilt;
-      this.transition = null;
+      this.anim = null;
       this.changed();
       return;
     }
-    this.transition = {
+    this.anim = {
       longitude: o.longitude,
       latitude: o.latitude,
       range: o.range,
@@ -1000,12 +994,12 @@ export default class GlobeRenderer implements GlobeHandle {
       duration,
       arcLift,
     };
-    this.invalidate();
+    this.redraw();
   }
 
   private draw(): void {
     const gl = this.gl;
-    const gpu = this.graphics;
+    const gpu = this.gpu;
     if (!gl || !gpu || gl.isContextLost()) return;
     const pose = cameraPose(this.orbit, this.pose);
     lookAt(this.view, pose.eye, pose.target, pose.up);
@@ -1092,24 +1086,24 @@ export default class GlobeRenderer implements GlobeHandle {
     this.options.autoRotate = value;
     this.lastFrame = 0;
     if (value) {
-      this.invalidate();
-    } else if (!this.dirty && !this.transition && !this.coasting()) {
+      this.redraw();
+    } else if (!this.dirty && !this.anim && !this.coasting()) {
       cancelAnimationFrame(this.raf);
       this.raf = 0;
     }
   }
   setBordersVisible(value: boolean): void {
     this.options.bordersVisible = value;
-    if (this.graphics && !this.contextLost)
-      this.gl!.uniform1i(this.graphics.bordersUniform, Number(value));
-    this.invalidate();
+    if (this.gpu && !this.lost)
+      this.gl!.uniform1i(this.gpu.bordersUniform, Number(value));
+    this.redraw();
   }
   setDemoVisible(value: boolean): void {
     this.options.demoVisible = value;
     if (!value) this.setHover(null);
-    if (this.graphics && !this.contextLost)
-      this.gl!.uniform1i(this.graphics.demoUniform, Number(value));
-    this.invalidate();
+    if (this.gpu && !this.lost)
+      this.gl!.uniform1i(this.gpu.demoUniform, Number(value));
+    this.redraw();
   }
   setReducedMotion(value: boolean): void {
     this.options.reducedMotion = value;
@@ -1117,15 +1111,15 @@ export default class GlobeRenderer implements GlobeHandle {
       this.intro = false;
       this.vx = 0;
       this.vy = 0;
-      if (this.transition) this.moveTo(this.transition.target);
+      if (this.anim) this.moveTo(this.anim.target);
     }
     this.lastFrame = 0;
-    this.invalidate();
+    this.redraw();
   }
 
   destroy(): void {
-    if (this.destroyed) return;
-    this.destroyed = true;
+    if (this.dead) return;
+    this.dead = true;
     this.abort.abort();
     cancelAnimationFrame(this.raf);
     for (const cleanup of this.cleanup.splice(0)) cleanup();
