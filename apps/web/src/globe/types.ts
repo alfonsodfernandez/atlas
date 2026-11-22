@@ -20,4 +20,6 @@ export interface GlobeProps {
   reducedMotion: boolean;
   onInteraction: () => void;
   onStatus: (status: GlobeStatus) => void;
+  onHoverCountry?: (code: string | null) => void;
+  onSelectCountry?: (code: string) => void;
 }

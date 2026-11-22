@@ -69,10 +69,10 @@ interactuar y respeta `prefers-reduced-motion`. Desde **Ayuda** se accede a las
 instrucciones, la privacidad y la alternativa accesible. Si WebGL no está
 disponible, la información y el reintento siguen siendo accesibles.
 
-La primera vista carga una máscara local de 1024 × 512 píxeles derivada de
-Natural Earth 1:110m (18.277 bytes). Al acercarte, el visor puede cargar una
-máscara adicional de 2048 × 1024 procedente de la fuente 1:50m (51.920 bytes)
-para definir mejor costas y límites.
+La primera vista carga una máscara SDF local de 1024 × 512 píxeles derivada de
+Natural Earth 1:110m (22.011 bytes). Al acercarte, el visor solicita una máscara
+SDF adicional de 2048 × 1024 procedente de la fuente 1:50m (63.621 bytes) para
+reconstruir costas, fronteras y el relleno de ejemplo con nitidez analítica.
 Los polígonos se procesan al generar los recursos; el navegador utiliza los PNG.
 [Procedencia, licencia y generación](docs/cartografia.md).
 
@@ -83,16 +83,18 @@ países ficticios del ejemplo.
 
 ## Rendimiento
 
-El globo mantiene una pasada WebGL por fotograma y reutiliza la geometría y los
-recursos de GPU. Las máscaras de tierra, fronteras y ejemplo se generan de
-antemano. La carga inicial utiliza el recurso ligero; el detalle adicional se
-solicita al hacer zoom, en lugar de precargarlo para la primera vista.
+El globo mantiene una pasada WebGL por fotograma a resolución nativa HiDPI
+(hasta `devicePixelRatio` 2) y reutiliza la geometría y los recursos de GPU.
+Las máscaras SDF de tierra, fronteras y ejemplo se generan de antemano. La carga
+inicial utiliza el recurso ligero; el detalle adicional se solicita al hacer
+zoom, en lugar de precargarlo para la primera vista.
 
-La escena se dibuja cuando cambia o mientras está activa la rotación. La
-animación se pausa cuando el visor no está visible y se respetan las preferencias
-de movimiento reducido. Los controles y paneles usan el DOM nativo.
+La escena se dibuja bajo demanda cuando cambia, durante inercia/vuelos en arco o
+mientras está activa la rotación. La animación se pausa cuando el visor no está
+visible y se respetan las preferencias de movimiento reducido. Los controles y
+paneles usan el DOM nativo.
 
-La primera vista descarga unos **33 KB** de recursos según la estimación de
+La primera vista descarga unos **39 KB** de recursos según la estimación de
 compilación. `npm run build` comprueba los límites de 40 KiB de JavaScript
 bruto, 15 KiB de JavaScript con gzip, 44 KiB de carga inicial y 64 KiB para
 el mapa de detalle. [Mediciones y método](docs/performance/).

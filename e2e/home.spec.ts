@@ -412,8 +412,8 @@ test('el globo cartográfico carga su mapa y controles con una descarga pequeña
         ratio: canvas.width / canvas.getBoundingClientRect().width,
       };
     });
-  expect(resolution.pixels).toBeLessThanOrEqual(1_202_000);
-  expect(resolution.ratio).toBeLessThanOrEqual(1.51);
+  expect(resolution.pixels).toBeLessThanOrEqual(3_700_000);
+  expect(resolution.ratio).toBeLessThanOrEqual(2.01);
   await expectIdleRenderer(page);
   assertRuntime();
 });
@@ -526,6 +526,13 @@ test('la interacción detiene la rotación automática', async ({ page }) => {
   });
   const offscreenFrames = await frameCount(page);
   await expect.poll(() => frameCount(page)).toBeGreaterThan(offscreenFrames);
+  await rotation.click();
+  await expect(rotation).toHaveAttribute('aria-pressed', 'false');
+  await expectIdleRenderer(page);
+  await rotation.click();
+  await expect(rotation).toHaveAttribute('aria-pressed', 'true');
+  const resumedFrames = await frameCount(page);
+  await expect.poll(() => frameCount(page)).toBeGreaterThan(resumedFrames);
   await globeStage(page).focus();
   await page.keyboard.press('ArrowRight');
   await expect(rotation).toHaveAttribute('aria-pressed', 'false');
@@ -545,6 +552,69 @@ test('la interacción detiene la rotación automática', async ({ page }) => {
   expect(await cameraValue(page, 'data-camera-longitude')).toBe(
     interruptedLongitude,
   );
+});
+
+test('el picking sobre España, el zoom con rueda y el modo horizontal funcionan sin solapamientos', async ({
+  page,
+}, testInfo) => {
+  const assertRuntime = observeRuntime(page);
+  await page.goto('./');
+  await waitForGlobe(page);
+  await waitForScene(page);
+
+  const canvas = globeEngine(page).locator('canvas');
+  const bounds = await canvas.boundingBox();
+  if (!bounds) throw new Error('El lienzo no tiene dimensiones visibles.');
+
+  // Center on Spain first via dialog or index, then verify picking on canvas
+  if (!testInfo.project.name.startsWith('mobile')) {
+    const indexBtn = page.locator('[data-index-country="ES"]');
+    await expect(indexBtn).toBeVisible();
+    await indexBtn.click();
+    await expect
+      .poll(() => cameraValue(page, 'data-camera-longitude'))
+      .toBeCloseTo(-3.7, 0);
+    await expectIdleRenderer(page);
+
+    // Hover directly over Spain at center of viewport
+    await page.mouse.move(
+      bounds.x + bounds.width / 2,
+      bounds.y + bounds.height / 2,
+    );
+    await expect(globeEngine(page)).toHaveAttribute(
+      'data-hovered-country',
+      'ES',
+    );
+    await expect(page.getByTestId('hover-readout')).toContainText('España');
+
+    // Wheel zoom anchored off-center shifts both height and camera target
+    const beforeHeight = await cameraValue(page, 'data-camera-height');
+    await page.mouse.move(
+      bounds.x + bounds.width * 0.56,
+      bounds.y + bounds.height * 0.46,
+    );
+    await page.mouse.wheel(0, -180);
+    await expect
+      .poll(() => cameraValue(page, 'data-camera-height'))
+      .toBeLessThan(beforeHeight);
+    await expectIdleRenderer(page);
+  } else {
+    // Mobile landscape check: no horizontal overflow and no header/controls overlap
+    await page.setViewportSize({ width: 667, height: 375 });
+    await expectIdleRenderer(page);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    const headerBox = await page.locator('.app-header').boundingBox();
+    const controlsBox = await page.locator('.stage-controls').boundingBox();
+    expect(headerBox).not.toBeNull();
+    expect(controlsBox).not.toBeNull();
+    expect(headerBox!.y + headerBox!.height).toBeLessThan(controlsBox!.y);
+  }
+
+  assertRuntime();
 });
 
 test('el arrastre y el pellizco táctil mueven la cámara real', async ({

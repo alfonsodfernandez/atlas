@@ -31,31 +31,32 @@ Solo se utilizan para regenerar los PNG y quedan fuera de la web publicada.
 
 ## Generación
 
-El generador rasteriza los polígonos en una cuadrícula cuatro veces mayor en
-cada eje. Obtiene las fronteras al comparar las celdas contiguas que pertenecen
-a países distintos. Después promedia la cobertura en cada máscara.
-El borde horizontal envuelve el antimeridiano. El polo sur conserva el relleno
-antártico de la fuente.
+El generador rasteriza los polígonos en una cuadrícula doble (`2×`) en cada eje,
+identifica las fronteras interiores comparando celdas contiguas de países
+distintos y calcula campos de distancia euclídea (SDF para tierra y demostración,
+y campo de distancia sin signo para fronteras) con envoltura horizontal en el
+antimeridiano (±180°). El polo sur conserva el relleno antártico de la fuente.
 
-Los PNG indexados tienen 64 entradas y 8 bits por píxel. Sus canales son
-independientes: rojo para tierra, verde para fronteras interiores y azul para
-resaltar la demostración. Cada canal usa los valores 0, 85, 170 y 255 para expresar
-cobertura suavizada. La costa resulta de la transición de tierra a mar y sigue
-visible aunque se desactive la capa de fronteras. WebGL decide los colores y
-compone el mapa en una sola pasada; las imágenes no contienen relieve ni colores
-de una fotografía satélite.
+Los PNG indexados usan hasta 256 entradas y 8 bits por píxel con canales
+independientes: rojo para el SDF de tierra, verde para la distancia a fronteras
+interiores y azul para el SDF de los países de ejemplo (acotado al SDF de tierra
+para alinear costas y relleno sin escalonamiento). En el shader de fragmentos de
+WebGL 2, la reconstrucción analítica con `fwidth()` dibuja costas, fronteras,
+retícula sutil y el relleno terracota nítidos a cualquier nivel de zoom en una
+sola pasada.
 
 La máscara azul marca únicamente `ESP`, `MEX` y `JPN`: España, México y Japón.
 Es una demostración sintética de la interfaz, no el historial del propietario.
 
 | Archivo                | Dimensiones | Fuente             | Bytes  | Uso                       |
 | ---------------------- | ----------- | ------------------ | ------ | ------------------------- |
-| `atlas-map.png`        | 1024 × 512  | Natural Earth 110m | 18.277 | Carga inicial             |
-| `atlas-map-detail.png` | 2048 × 1024 | Natural Earth 50m  | 51.920 | Carga diferida al acercar |
+| `atlas-map.png`        | 1024 × 512  | Natural Earth 110m | 22.011 | Carga inicial             |
+| `atlas-map-detail.png` | 2048 × 1024 | Natural Earth 50m  | 63.621 | Carga diferida al acercar |
 
 La versión detallada conserva islas y trazados que no aparecen en el mapa
-mundial de 110m. Su mayor resolución reduce la pixelación al acercar, pero sigue
-siendo cartografía de visualización; no es una fuente para geocodificar visitas.
+mundial de 110m. Su mayor resolución y los campos de distancia mantienen costas,
+fronteras y relleno nítidos al acercar, pero sigue siendo cartografía de
+visualización; no es una fuente para geocodificar visitas.
 
 ```sh
 node scripts/prepare-map.mjs
@@ -67,6 +68,6 @@ La regeneración habitual es local y no hace peticiones de red. El script verifi
 los hashes de las fuentes compactas antes de procesarlas.
 
 - SHA-256 de `atlas-map.png`:
-  `863f498ea926b7e36b23ff8cc2447d3f0ca967c6dc12eeea89c62de3e3cbb20e`.
+  `9714c5130d84aab66e52d81a587b197e0b5d1baec6d29ef3fe78f40dc3ff2673`.
 - SHA-256 de `atlas-map-detail.png`:
-  `84f028c911d4cbc81d3881fd85cb31654b51b8a5eea5b636a8c98b8508585830`.
+  `c672d837ad957a233706ac45429088d515ede285dc7a38898f5bdf3e76a83345`.

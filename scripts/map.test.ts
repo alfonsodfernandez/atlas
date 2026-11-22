@@ -111,20 +111,21 @@ describe('máscaras cartográficas de ATLAS', () => {
       expect([...map.header.subarray(8)]).toEqual([8, 3, 0, 0, 0]);
       expect(map.bytes.length).toBeLessThanOrEqual(budget);
       expect(map.pixels.length).toBe(map.stride * height);
-      expect([...map.palette]).toEqual(
-        Array.from({ length: 64 }, (_, index) => [
-          (index >> 4) * 85,
-          ((index >> 2) & 3) * 85,
-          (index & 3) * 85,
-        ]).flat(),
-      );
+      expect(map.palette.length % 3).toBe(0);
+      const colorCount = map.palette.length / 3;
+      expect(colorCount).toBeGreaterThan(2);
+      expect(colorCount).toBeLessThanOrEqual(256);
       let invalid = 0;
       for (let y = 0; y < height; y += 1) {
         expect(map.pixels[y * map.stride]).toBe(0);
         for (let x = 0; x < width; x += 1) {
           const index = map.pixels[y * map.stride + x + 1]!;
-          // Demo coverage must be contained within land, never placed in the sea.
-          if (index >= 64 || (index & 3) > index >> 4) invalid += 1;
+          // Demo SDF must be contained within land SDF, never exceeding land into the sea.
+          if (
+            index >= colorCount ||
+            map.palette[index * 3 + 2]! > map.palette[index * 3]!
+          )
+            invalid += 1;
         }
       }
       expect(invalid).toBe(0);

@@ -1,5 +1,6 @@
 import { createEarthMesh, MAX_TILT } from './geometry';
 import {
+  angularDistance,
   cameraPose,
   clamp,
   degrees,
@@ -8,10 +9,12 @@ import {
   lookAt,
   multiply,
   perspective,
+  pickEllipsoid,
   wrapLongitude,
   type CameraPose,
-  type PositionDescription,
+  type GeoPoint,
   type Orbit,
+  type PositionDescription,
 } from './math';
 import { earthFragment, earthVertex } from './shaders';
 import type { GlobeHandle, GlobeProps, GlobeStatus } from './types';
@@ -22,11 +25,19 @@ interface Graphics {
   eyeUniform: WebGLUniformLocation | null;
   bordersUniform: WebGLUniformLocation | null;
   demoUniform: WebGLUniformLocation | null;
+  hoverUniform: WebGLUniformLocation | null;
   sphereVao: WebGLVertexArrayObject;
   texture: WebGLTexture | null;
   indexCount: number;
 }
-type Pointer = { x: number; y: number; button: number };
+type Pointer = {
+  x: number;
+  y: number;
+  startX: number;
+  startY: number;
+  moved: boolean;
+  button: number;
+};
 interface MapSource {
   blob: Blob;
   detail: boolean;
@@ -39,16 +50,34 @@ interface Transition {
   target: Orbit;
   started: number;
   duration: number;
+  arcLift: number;
 }
 
-// Regional overview: the approximate mask has no street-level detail.
-const MIN_RANGE = 0.16;
+// Regional overview: the SDF mask has no street-level detail.
+const MIN_RANGE = 0.14;
 const MAX_RANGE = 9.4;
-const MAX_PIXELS = 850_000;
+const MAX_PIXELS = 3_686_400;
 const AUTO_FRAME_INTERVAL = 1000 / 30;
 const HOME_LONGITUDE = -3;
 const HOME_LATITUDE = 34;
 const DETAIL_RANGE = 1.15;
+const PICK_W = 512;
+const PICK_H = 256;
+
+const HOVER_ID: Record<string, number> = { ES: 1, MX: 2, JP: 3 };
+
+function classifyDemoCountry(
+  longitude: number,
+  latitude: number,
+): string | null {
+  if (longitude > -20 && longitude < 7 && latitude > 26 && latitude < 45)
+    return 'ES';
+  if (longitude > -120 && longitude < -85 && latitude > 13 && latitude < 34)
+    return 'MX';
+  if (longitude > 120 && longitude < 155 && latitude > 23 && latitude < 47)
+    return 'JP';
+  return null;
+}
 
 /** One opaque cartographic globe, drawn only when needed. */
 export default class GlobeRenderer implements GlobeHandle {
@@ -70,15 +99,22 @@ export default class GlobeRenderer implements GlobeHandle {
     latitude: 0,
     heightM: 0,
   };
+  private readonly pickA: GeoPoint = { longitude: 0, latitude: 0 };
+  private readonly pickB: GeoPoint = { longitude: 0, latitude: 0 };
   private readonly onAnimationFrame = (time: number) => this.frame(time);
   private gl: WebGL2RenderingContext | null = null;
   private graphics: Graphics | null = null;
   private activeMap: MapSource | null = null;
   private pendingMap: MapSource | null = null;
+  private pickMask: Uint8Array | null = null;
+  private hover: string | null = null;
   private uploading = false;
   private detailRequested = false;
-  private entrancePending = true;
+  private intro = true;
   private transition: Transition | null = null;
+  private vx = 0;
+  private vy = 0;
+  private dragAt = 0;
   private imageLoaded = false;
   private ready = false;
   private destroyed = false;
@@ -91,7 +127,7 @@ export default class GlobeRenderer implements GlobeHandle {
   private pixelRatio = 1;
   private cssWidth = 1;
   private cssHeight = 1;
-  private cameraTouched = false;
+  private moved = false;
   private status: GlobeStatus = { state: 'loading' };
   private orbit: Orbit = {
     longitude: HOME_LONGITUDE,
@@ -109,6 +145,7 @@ export default class GlobeRenderer implements GlobeHandle {
     host.dataset.frameCount = '0';
     host.dataset.drawCalls = '0';
     host.dataset.mapDetail = 'base';
+    host.dataset.hoveredCountry = '';
     this.canvas.setAttribute('aria-label', 'Globo terráqueo 3D de Atlas');
     this.canvas.tabIndex = -1;
     Object.assign(this.canvas.style, {
@@ -164,12 +201,12 @@ export default class GlobeRenderer implements GlobeHandle {
   private shader(type: number, source: string): WebGLShader {
     const gl = this.gl!;
     const shader = gl.createShader(type);
-    if (!shader) throw new Error('No se pudo crear un shader.');
+    if (!shader) throw new Error();
     gl.shaderSource(shader, source);
     gl.compileShader(shader);
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
       gl.deleteShader(shader);
-      throw new Error('No se pudo preparar el renderizado.');
+      throw new Error();
     }
     return shader;
   }
@@ -177,7 +214,7 @@ export default class GlobeRenderer implements GlobeHandle {
   private program(vertex: string, fragment: string): WebGLProgram {
     const gl = this.gl!;
     const program = gl.createProgram();
-    if (!program) throw new Error('No se pudo crear el programa gráfico.');
+    if (!program) throw new Error();
     this.gpuCleanup.push(() => gl.deleteProgram(program));
     let a: WebGLShader | undefined;
     let b: WebGLShader | undefined;
@@ -187,9 +224,7 @@ export default class GlobeRenderer implements GlobeHandle {
       gl.attachShader(program, a);
       gl.attachShader(program, b);
       gl.linkProgram(program);
-      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        throw new Error('No se pudo enlazar el programa gráfico.');
-      }
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error();
     } finally {
       if (a) gl.deleteShader(a);
       if (b) gl.deleteShader(b);
@@ -200,7 +235,7 @@ export default class GlobeRenderer implements GlobeHandle {
   private buffer(target: number, data: ArrayBufferView): WebGLBuffer {
     const gl = this.gl!;
     const buffer = gl.createBuffer();
-    if (!buffer) throw new Error('No se pudo reservar el buffer.');
+    if (!buffer) throw new Error();
     this.gpuCleanup.push(() => gl.deleteBuffer(buffer));
     gl.bindBuffer(target, buffer);
     gl.bufferData(target, data, gl.STATIC_DRAW);
@@ -210,7 +245,7 @@ export default class GlobeRenderer implements GlobeHandle {
   private vao(): WebGLVertexArrayObject {
     const gl = this.gl!;
     const vao = gl.createVertexArray();
-    if (!vao) throw new Error('No se pudo preparar la geometría.');
+    if (!vao) throw new Error();
     this.gpuCleanup.push(() => gl.deleteVertexArray(vao));
     gl.bindVertexArray(vao);
     return vao;
@@ -238,6 +273,7 @@ export default class GlobeRenderer implements GlobeHandle {
       eyeUniform: gl.getUniformLocation(program, 'uEye'),
       bordersUniform: gl.getUniformLocation(program, 'uBorders'),
       demoUniform: gl.getUniformLocation(program, 'uDemo'),
+      hoverUniform: gl.getUniformLocation(program, 'uHover'),
       sphereVao,
       texture: null,
       indexCount: mesh.indices.length,
@@ -246,15 +282,15 @@ export default class GlobeRenderer implements GlobeHandle {
     this.gpuCleanup.push(() => {
       if (graphics.texture) gl.deleteTexture(graphics.texture);
     });
-    // This renderer exclusively owns one program and VAO for the context.
     gl.useProgram(program);
     gl.uniform1i(gl.getUniformLocation(program, 'uMap'), 0);
     gl.uniform1i(graphics.demoUniform, Number(this.options.demoVisible));
+    gl.uniform1i(graphics.bordersUniform, Number(this.options.bordersVisible));
     gl.uniform1i(
-      this.graphics.bordersUniform,
-      Number(this.options.bordersVisible),
+      graphics.hoverUniform,
+      this.hover ? (HOVER_ID[this.hover] ?? 0) : 0,
     );
-    gl.clearColor(244 / 255, 241 / 255, 232 / 255, 1);
+    gl.clearColor(243 / 255, 239 / 255, 230 / 255, 1);
     gl.disable(gl.BLEND);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.CULL_FACE);
@@ -264,6 +300,93 @@ export default class GlobeRenderer implements GlobeHandle {
   private releaseGraphics(): void {
     for (const cleanup of this.gpuCleanup.splice(0)) cleanup();
     this.graphics = null;
+  }
+
+  private extractPickMask(bitmap: ImageBitmap): void {
+    try {
+      const c = document.createElement('canvas');
+      c.width = PICK_W;
+      c.height = PICK_H;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(bitmap, 0, 0, PICK_W, PICK_H);
+      const rgba = ctx.getImageData(0, 0, PICK_W, PICK_H).data;
+      const mask = this.pickMask ?? new Uint8Array(PICK_W * PICK_H);
+      for (let i = 0; i < mask.length; i += 1)
+        mask[i] = rgba[i * 4 + 2]! >= 120 ? 1 : 0;
+      this.pickMask = mask;
+    } catch {
+      /* picking degrades gracefully */
+    }
+  }
+
+  private pickAt(x: number, y: number, out: GeoPoint): GeoPoint | null {
+    const r = this.canvas.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return null;
+    return pickEllipsoid(
+      cameraPose(this.orbit, this.pose),
+      this.cssWidth / this.cssHeight,
+      ((x - r.left) / r.width) * 2 - 1,
+      1 - ((y - r.top) / r.height) * 2,
+      out,
+    );
+  }
+
+  private demoAt(p: GeoPoint | null): string | null {
+    if (!p || !this.options.demoVisible || !this.pickMask) return null;
+    const x =
+      Math.floor(((((p.longitude + 180) % 360) + 360) % 360) * (PICK_W / 360)) %
+      PICK_W;
+    const y = clamp(
+      Math.floor(((90 - p.latitude) * PICK_H) / 180),
+      0,
+      PICK_H - 1,
+    );
+    return this.pickMask[y * PICK_W + x]
+      ? classifyDemoCountry(p.longitude, p.latitude)
+      : null;
+  }
+
+  private setHover(code: string | null): void {
+    if (this.hover === code) return;
+    this.hover = code;
+    this.host.dataset.hoveredCountry = code ?? '';
+    if (this.graphics && !this.contextLost) {
+      this.gl!.uniform1i(
+        this.graphics.hoverUniform,
+        code ? (HOVER_ID[code] ?? 0) : 0,
+      );
+      this.invalidate();
+    }
+    this.options.onHoverCountry?.(code);
+  }
+
+  private updateCursor(x: number, y: number): void {
+    if (this.pointers.size > 0) {
+      this.canvas.style.cursor = 'grabbing';
+      return;
+    }
+    const hit = this.pickAt(x, y, this.pickA);
+    const code = this.demoAt(hit);
+    this.setHover(code);
+    this.canvas.style.cursor = code ? 'pointer' : hit ? 'grab' : 'default';
+  }
+
+  private zoomAt(x: number, y: number, nextRange: number): void {
+    const before = this.pickAt(x, y, this.pickA);
+    this.orbit.range = clamp(nextRange, MIN_RANGE, MAX_RANGE);
+    const after = before ? this.pickAt(x, y, this.pickB) : null;
+    if (before && after) {
+      this.orbit.longitude = wrapLongitude(
+        this.orbit.longitude +
+          wrapLongitude(before.longitude - after.longitude),
+      );
+      this.orbit.latitude = clamp(
+        this.orbit.latitude + (before.latitude - after.latitude),
+        -85,
+        85,
+      );
+    }
   }
 
   private queueMap(source: MapSource): void {
@@ -316,7 +439,6 @@ export default class GlobeRenderer implements GlobeHandle {
       }
     } finally {
       this.uploading = false;
-      // A restored context may have replaced the one captured during decode.
       if (
         this.pendingMap &&
         !this.contextLost &&
@@ -352,9 +474,10 @@ export default class GlobeRenderer implements GlobeHandle {
         bitmap.height > limit ||
         bitmap.width * bitmap.height > 8_388_608
       )
-        throw new Error('Mapa demasiado grande para este dispositivo.');
+        throw new Error();
+      this.extractPickMask(bitmap);
       const texture = gl.createTexture();
-      if (!texture) throw new Error('No se pudo crear la textura.');
+      if (!texture) throw new Error();
       try {
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -376,8 +499,7 @@ export default class GlobeRenderer implements GlobeHandle {
         );
         gl.generateMipmap(gl.TEXTURE_2D);
         if (gl.isContextLost()) return false;
-        if (gl.getError() !== gl.NO_ERROR)
-          throw new Error('No se pudo cargar la textura en la GPU.');
+        if (gl.getError() !== gl.NO_ERROR) throw new Error();
         const previous = graphics.texture;
         graphics.texture = texture;
         if (previous) gl.deleteTexture(previous);
@@ -393,7 +515,6 @@ export default class GlobeRenderer implements GlobeHandle {
       this.invalidate();
       return true;
     } finally {
-      // Keep only the compressed PNG for recovery, not the decoded bitmap.
       bitmap.close();
     }
   }
@@ -401,10 +522,10 @@ export default class GlobeRenderer implements GlobeHandle {
   private async loadTexture(): Promise<void> {
     try {
       const response = await fetch(
-        `${import.meta.env.BASE_URL}maps/atlas-map.png?v=3`,
+        `${import.meta.env.BASE_URL}maps/atlas-map.png?v=4`,
         { signal: this.abort.signal },
       );
-      if (!response.ok) throw new Error('Imagen no disponible.');
+      if (!response.ok) throw new Error();
       const blob = await response.blob();
       if (this.abort.signal.aborted) return;
       this.queueMap({ blob, detail: false });
@@ -420,7 +541,7 @@ export default class GlobeRenderer implements GlobeHandle {
   private loadDetail(): void {
     if (
       !this.ready ||
-      !this.cameraTouched ||
+      !this.moved ||
       this.orbit.range > DETAIL_RANGE ||
       this.detailRequested
     )
@@ -430,7 +551,7 @@ export default class GlobeRenderer implements GlobeHandle {
       signal: this.abort.signal,
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error('Detalle no disponible.');
+        if (!response.ok) throw new Error();
         const blob = await response.blob();
         if (!this.abort.signal.aborted) this.queueMap({ blob, detail: true });
       })
@@ -443,7 +564,18 @@ export default class GlobeRenderer implements GlobeHandle {
       });
   }
 
+  private coasting(): boolean {
+    return (
+      !this.options.reducedMotion &&
+      this.pointers.size === 0 &&
+      Math.hypot(this.vx, this.vy) > 0.8
+    );
+  }
+
   private installEvents(): void {
+    const cv = this.canvas;
+    const o = this.orbit;
+    const pts = this.pointers;
     const listen = (
       target: EventTarget,
       name: string,
@@ -459,23 +591,39 @@ export default class GlobeRenderer implements GlobeHandle {
       if (event.button !== 0 && event.button !== 1) return;
       event.preventDefault();
       this.interact();
-      this.canvas.focus({ preventScroll: true });
-      this.canvas.setPointerCapture(event.pointerId);
-      this.pointers.set(event.pointerId, {
+      cv.focus({ preventScroll: true });
+      cv.setPointerCapture(event.pointerId);
+      pts.set(event.pointerId, {
         x: event.clientX,
         y: event.clientY,
+        startX: event.clientX,
+        startY: event.clientY,
+        moved: false,
         button: event.button,
       });
+      cv.style.cursor = 'grabbing';
     };
     const pointerMove = (event: PointerEvent): void => {
-      const previous = this.pointers.get(event.pointerId);
-      if (!previous) return;
+      const previous = pts.get(event.pointerId);
+      if (!previous) {
+        if (event.pointerType === 'mouse' && this.ready)
+          this.updateCursor(event.clientX, event.clientY);
+        return;
+      }
       const dx = event.clientX - previous.x;
       const dy = event.clientY - previous.y;
-      if (this.pointers.size >= 2) {
-        // Use the moved pointer and its partner without cloning the pointer map.
+      if (
+        !previous.moved &&
+        Math.hypot(
+          event.clientX - previous.startX,
+          event.clientY - previous.startY,
+        ) > 5
+      )
+        previous.moved = true;
+
+      if (pts.size >= 2) {
         let partner: Pointer | undefined;
-        for (const pointer of this.pointers.values()) {
+        for (const pointer of pts.values()) {
           if (pointer !== previous) {
             partner = pointer;
             break;
@@ -490,42 +638,80 @@ export default class GlobeRenderer implements GlobeHandle {
           event.clientX - partner.x,
           event.clientY - partner.y,
         );
-        if (nextDistance > 1 && previousDistance > 1)
-          this.orbit.range = clamp(
-            (this.orbit.range * previousDistance) / nextDistance,
-            MIN_RANGE,
-            MAX_RANGE,
+        if (nextDistance > 1 && previousDistance > 1) {
+          this.zoomAt(
+            (event.clientX + partner.x) * 0.5,
+            (event.clientY + partner.y) * 0.5,
+            (o.range * previousDistance) / nextDistance,
           );
-        this.orbit.tilt = clamp(this.orbit.tilt + dy * 0.003, 0, MAX_TILT);
+        }
+        o.tilt = clamp(o.tilt + dy * 0.003, 0, MAX_TILT);
+        this.vx = 0;
+        this.vy = 0;
       } else if (previous.button === 1 || event.shiftKey) {
-        this.orbit.tilt = clamp(this.orbit.tilt + dy * 0.006, 0, MAX_TILT);
+        o.tilt = clamp(o.tilt + dy * 0.006, 0, MAX_TILT);
+        this.vx = 0;
+        this.vy = 0;
       } else {
-        const scale = Math.max(0.001, Math.min(1, this.orbit.range / 3));
-        this.orbit.longitude = wrapLongitude(
-          this.orbit.longitude - dx * 0.3 * scale,
-        );
-        this.orbit.latitude = clamp(
-          this.orbit.latitude + dy * 0.25 * scale,
-          -85,
-          85,
-        );
+        const scale = Math.max(0.001, Math.min(1, o.range / 3));
+        const dLon = -dx * 0.3 * scale;
+        const dLat = dy * 0.25 * scale;
+        o.longitude = wrapLongitude(o.longitude + dLon);
+        o.latitude = clamp(o.latitude + dLat, -85, 85);
+        const now = performance.now();
+        const dt = Math.max(0.008, (now - this.dragAt) / 1000);
+        if (this.dragAt && dt < 0.12) {
+          this.vx = clamp(this.vx * 0.45 + (dLon / dt) * 0.55, -120, 120);
+          this.vy = clamp(this.vy * 0.45 + (dLat / dt) * 0.55, -120, 120);
+        }
+        this.dragAt = now;
       }
       previous.x = event.clientX;
       previous.y = event.clientY;
       this.changed();
     };
     const pointerUp = (event: PointerEvent): void => {
-      this.pointers.delete(event.pointerId);
-      if (this.canvas.hasPointerCapture(event.pointerId))
-        this.canvas.releasePointerCapture(event.pointerId);
+      const pointer = pts.get(event.pointerId);
+      const wasSingleTap =
+        pointer && !pointer.moved && pointer.button === 0 && pts.size === 1;
+      pts.delete(event.pointerId);
+      if (cv.hasPointerCapture(event.pointerId))
+        cv.releasePointerCapture(event.pointerId);
+      if (wasSingleTap && this.ready) {
+        this.vx = 0;
+        this.vy = 0;
+        const country = this.demoAt(
+          this.pickAt(event.clientX, event.clientY, this.pickA),
+        );
+        if (country) {
+          this.setHover(country);
+          this.options.onSelectCountry?.(country);
+        }
+      } else if (pts.size === 0 && performance.now() - this.dragAt > 80) {
+        this.vx = 0;
+        this.vy = 0;
+      } else if (this.coasting()) {
+        this.lastFrame = 0;
+        this.scheduleFrame();
+      }
+      if (event.pointerType === 'mouse' && this.ready)
+        this.updateCursor(event.clientX, event.clientY);
+      else cv.style.cursor = 'default';
     };
-    listen(this.canvas, 'pointerdown', pointerDown as EventListener);
-    listen(this.canvas, 'pointermove', pointerMove as EventListener);
-    listen(this.canvas, 'pointerup', pointerUp as EventListener);
-    listen(this.canvas, 'pointercancel', pointerUp as EventListener);
-    listen(this.canvas, 'lostpointercapture', pointerUp as EventListener);
+    const pointerLeave = (): void => {
+      if (pts.size === 0) {
+        this.setHover(null);
+        cv.style.cursor = 'default';
+      }
+    };
+    listen(cv, 'pointerdown', pointerDown as EventListener);
+    listen(cv, 'pointermove', pointerMove as EventListener);
+    listen(cv, 'pointerup', pointerUp as EventListener);
+    listen(cv, 'pointercancel', pointerUp as EventListener);
+    listen(cv, 'lostpointercapture', pointerUp as EventListener);
+    listen(cv, 'pointerleave', pointerLeave as EventListener);
     listen(
-      this.canvas,
+      cv,
       'wheel',
       ((event: WheelEvent) => {
         event.preventDefault();
@@ -537,20 +723,18 @@ export default class GlobeRenderer implements GlobeHandle {
             : event.deltaMode === 2
               ? this.cssHeight
               : 1);
-        this.orbit.range = clamp(
-          this.orbit.range * Math.exp(clamp(delta, -300, 300) * 0.0015),
-          MIN_RANGE,
-          MAX_RANGE,
+        this.zoomAt(
+          event.clientX,
+          event.clientY,
+          o.range * Math.exp(clamp(delta, -300, 300) * 0.0015),
         );
         this.changed();
       }) as EventListener,
       { passive: false },
     );
-    listen(this.canvas, 'webglcontextlost', ((event: Event) => {
+    listen(cv, 'webglcontextlost', ((event: Event) => {
       event.preventDefault();
       this.contextLost = true;
-      // The browser already released these objects. Do not delete handles
-      // belonging to the lost context when a fresh context is restored.
       this.gpuCleanup.length = 0;
       this.graphics = null;
       cancelAnimationFrame(this.raf);
@@ -562,7 +746,7 @@ export default class GlobeRenderer implements GlobeHandle {
         'Se ha interrumpido el renderizado. Puedes volver a intentarlo.',
       );
     }) as EventListener);
-    listen(this.canvas, 'webglcontextrestored', (() => {
+    listen(cv, 'webglcontextrestored', (() => {
       if (this.destroyed) return;
       try {
         this.contextLost = false;
@@ -588,7 +772,8 @@ export default class GlobeRenderer implements GlobeHandle {
     const resize = new ResizeObserver(() => this.resize());
     resize.observe(this.host);
     this.cleanup.push(() => resize.disconnect());
-    const intersection = new IntersectionObserver(([entry]) => {
+    const intersection = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1];
       this.intersecting = entry?.isIntersecting ?? true;
       this.lastFrame = 0;
       if (!this.intersecting) {
@@ -607,7 +792,7 @@ export default class GlobeRenderer implements GlobeHandle {
     this.cssHeight = Math.max(size.height, 1);
     this.pixelRatio = Math.min(
       window.devicePixelRatio || 1,
-      1.5,
+      2,
       Math.sqrt(MAX_PIXELS / (this.cssWidth * this.cssHeight)),
     );
     const width = Math.max(1, Math.floor(this.cssWidth * this.pixelRatio));
@@ -617,20 +802,18 @@ export default class GlobeRenderer implements GlobeHandle {
       this.canvas.height = height;
     }
     if (!this.contextLost) this.gl?.viewport(0, 0, width, height);
-    // With no depth attachment, a fixed clip range works at every zoom.
     perspective(
       this.projection,
       this.cssWidth / this.cssHeight,
       0.000001,
       MAX_RANGE + 4,
     );
-    if (!this.cameraTouched) {
+    if (!this.moved) {
       const range = homeRange(this.cssWidth / this.cssHeight);
       if (this.transition) this.transition.target.range = range;
       else
         this.orbit.range =
-          range *
-          (this.entrancePending && !this.options.reducedMotion ? 1.055 : 1);
+          range * (this.intro && !this.options.reducedMotion ? 1.055 : 1);
     }
     this.describe();
     this.invalidate();
@@ -638,8 +821,10 @@ export default class GlobeRenderer implements GlobeHandle {
 
   private interact(): void {
     this.transition = null;
-    this.entrancePending = false;
-    this.cameraTouched = true;
+    this.vx = 0;
+    this.vy = 0;
+    this.intro = false;
+    this.moved = true;
     this.options.autoRotate = false;
     this.options.onInteraction();
   }
@@ -690,58 +875,68 @@ export default class GlobeRenderer implements GlobeHandle {
     )
       return;
     const animating = this.transition !== null;
+    const coast = this.coasting();
     const rotating =
       this.ready &&
       this.options.autoRotate &&
       !this.options.reducedMotion &&
-      !animating;
-    // Auto rotation is slow. Keep interactive frames immediate and limit only
-    // automatic frames, allowing a small tolerance for 60/120 Hz RAF jitter.
+      !animating &&
+      !coast;
     if (
       !this.dirty &&
       !animating &&
+      !coast &&
       (!rotating || time - this.lastFrame < AUTO_FRAME_INTERVAL - 2)
     ) {
       if (rotating) this.scheduleFrame();
       return;
     }
     this.dirty = false;
+    const o = this.orbit;
     if (this.transition) {
-      const transition = this.transition;
-      if (!transition.started) transition.started = time;
-      const progress = clamp(
-        (time - transition.started) / transition.duration,
-        0,
-        1,
+      const tr = this.transition;
+      if (!tr.started) tr.started = time;
+      const p = clamp((time - tr.started) / tr.duration, 0, 1);
+      const ease = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+      o.longitude = wrapLongitude(
+        tr.longitude + wrapLongitude(tr.target.longitude - tr.longitude) * ease,
       );
-      const remaining = 1 - progress;
-      const ease = 1 - remaining * remaining * remaining;
-      this.orbit.longitude = wrapLongitude(
-        transition.longitude +
-          wrapLongitude(transition.target.longitude - transition.longitude) *
-            ease,
+      o.latitude = tr.latitude + (tr.target.latitude - tr.latitude) * ease;
+      const baseRange = tr.range + (tr.target.range - tr.range) * ease;
+      o.range = clamp(
+        baseRange + tr.arcLift * 4 * p * (1 - p),
+        MIN_RANGE,
+        MAX_RANGE,
       );
-      this.orbit.latitude =
-        transition.latitude +
-        (transition.target.latitude - transition.latitude) * ease;
-      this.orbit.range =
-        transition.range + (transition.target.range - transition.range) * ease;
-      this.orbit.tilt =
-        transition.tilt + (transition.target.tilt - transition.tilt) * ease;
-      if (progress === 1) this.transition = null;
+      o.tilt = tr.tilt + (tr.target.tilt - tr.tilt) * ease;
+      if (p === 1) this.transition = null;
+      this.describe();
+      this.loadDetail();
+    } else if (coast) {
+      const dt = this.lastFrame
+        ? Math.max(0.016, (time - this.lastFrame) / 1000)
+        : 0.016;
+      const step = Math.min(dt, 0.05);
+      o.longitude = wrapLongitude(o.longitude + this.vx * step);
+      o.latitude = clamp(o.latitude + this.vy * step, -85, 85);
+      const decay = Math.exp(-dt * 8);
+      this.vx *= decay;
+      this.vy *= decay;
+      if (Math.hypot(this.vx, this.vy) < 1) {
+        this.vx = 0;
+        this.vy = 0;
+      }
       this.describe();
       this.loadDetail();
     }
     if (rotating && this.lastFrame)
-      this.orbit.longitude = wrapLongitude(
-        this.orbit.longitude +
-          Math.min((time - this.lastFrame) / 1_000, 0.1) * 0.3,
+      o.longitude = wrapLongitude(
+        o.longitude + Math.min((time - this.lastFrame) / 1_000, 0.1) * 0.3,
       );
     this.lastFrame = time;
     try {
       this.draw();
       if (rotating) {
-        // A rotation about the polar axis only changes the camera's longitude.
         const [x, , z] = this.pose.eye;
         this.host.dataset.cameraLongitude = degrees(Math.atan2(-z, x)).toFixed(
           5,
@@ -750,8 +945,8 @@ export default class GlobeRenderer implements GlobeHandle {
       if (this.imageLoaded && !this.ready) {
         this.ready = true;
         this.report('ready');
-        if (this.entrancePending) {
-          this.entrancePending = false;
+        if (this.intro) {
+          this.intro = false;
           if (!this.options.reducedMotion)
             this.moveTo(
               {
@@ -761,6 +956,7 @@ export default class GlobeRenderer implements GlobeHandle {
                 tilt: 0,
               },
               1_100,
+              0,
             );
         }
         this.loadDetail();
@@ -775,29 +971,34 @@ export default class GlobeRenderer implements GlobeHandle {
     }
     if (
       this.transition ||
+      this.coasting() ||
       (this.ready && this.options.autoRotate && !this.options.reducedMotion)
     )
       this.scheduleFrame();
   }
 
-  private moveTo(target: Orbit, duration = 850): void {
+  private moveTo(target: Orbit, duration = 850, arcLift = 0): void {
+    this.vx = 0;
+    this.vy = 0;
+    const o = this.orbit;
     if (this.options.reducedMotion) {
-      this.orbit.longitude = target.longitude;
-      this.orbit.latitude = target.latitude;
-      this.orbit.range = target.range;
-      this.orbit.tilt = target.tilt;
+      o.longitude = target.longitude;
+      o.latitude = target.latitude;
+      o.range = target.range;
+      o.tilt = target.tilt;
       this.transition = null;
       this.changed();
       return;
     }
     this.transition = {
-      longitude: this.orbit.longitude,
-      latitude: this.orbit.latitude,
-      range: this.orbit.range,
-      tilt: this.orbit.tilt,
+      longitude: o.longitude,
+      latitude: o.latitude,
+      range: o.range,
+      tilt: o.tilt,
       target,
       started: 0,
       duration,
+      arcLift,
     };
     this.invalidate();
   }
@@ -820,15 +1021,19 @@ export default class GlobeRenderer implements GlobeHandle {
 
   home(): void {
     this.interact();
-    this.cameraTouched = false;
-    this.moveTo({
-      longitude: HOME_LONGITUDE,
-      latitude: HOME_LATITUDE,
-      range: homeRange(this.cssWidth / this.cssHeight),
-      tilt: 0,
-    });
+    this.moved = false;
+    this.moveTo(
+      {
+        longitude: HOME_LONGITUDE,
+        latitude: HOME_LATITUDE,
+        range: homeRange(this.cssWidth / this.cssHeight),
+        tilt: 0,
+      },
+      850,
+      0,
+    );
   }
-  goTo(longitude: number, latitude: number, range = 0.48): void {
+  goTo(longitude: number, latitude: number, range = 0.46): void {
     if (
       !Number.isFinite(longitude) ||
       !Number.isFinite(latitude) ||
@@ -836,12 +1041,26 @@ export default class GlobeRenderer implements GlobeHandle {
     )
       return;
     this.interact();
-    this.moveTo({
-      longitude: wrapLongitude(longitude),
-      latitude: clamp(latitude, -85, 85),
-      range: clamp(range, MIN_RANGE, MAX_RANGE),
-      tilt: 0,
-    });
+    const targetLon = wrapLongitude(longitude);
+    const targetLat = clamp(latitude, -85, 85);
+    const dist = angularDistance(
+      this.orbit.longitude,
+      this.orbit.latitude,
+      targetLon,
+      targetLat,
+    );
+    const arcLift = Math.min(1.5, dist * 0.6);
+    const duration = Math.round(700 + Math.min(dist, Math.PI) * 180);
+    this.moveTo(
+      {
+        longitude: targetLon,
+        latitude: targetLat,
+        range: clamp(range, MIN_RANGE, MAX_RANGE),
+        tilt: 0,
+      },
+      duration,
+      arcLift,
+    );
   }
   zoomIn(): void {
     this.interact();
@@ -872,7 +1091,12 @@ export default class GlobeRenderer implements GlobeHandle {
   setAutoRotate(value: boolean): void {
     this.options.autoRotate = value;
     this.lastFrame = 0;
-    this.invalidate();
+    if (value) {
+      this.invalidate();
+    } else if (!this.dirty && !this.transition && !this.coasting()) {
+      cancelAnimationFrame(this.raf);
+      this.raf = 0;
+    }
   }
   setBordersVisible(value: boolean): void {
     this.options.bordersVisible = value;
@@ -882,6 +1106,7 @@ export default class GlobeRenderer implements GlobeHandle {
   }
   setDemoVisible(value: boolean): void {
     this.options.demoVisible = value;
+    if (!value) this.setHover(null);
     if (this.graphics && !this.contextLost)
       this.gl!.uniform1i(this.graphics.demoUniform, Number(value));
     this.invalidate();
@@ -889,7 +1114,9 @@ export default class GlobeRenderer implements GlobeHandle {
   setReducedMotion(value: boolean): void {
     this.options.reducedMotion = value;
     if (value) {
-      this.entrancePending = false;
+      this.intro = false;
+      this.vx = 0;
+      this.vy = 0;
       if (this.transition) this.moveTo(this.transition.target);
     }
     this.lastFrame = 0;
@@ -906,6 +1133,7 @@ export default class GlobeRenderer implements GlobeHandle {
     this.releaseGraphics();
     this.activeMap = null;
     this.pendingMap = null;
+    this.pickMask = null;
     this.gl?.getExtension('WEBGL_lose_context')?.loseContext();
     this.canvas.remove();
   }
