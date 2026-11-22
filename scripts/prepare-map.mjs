@@ -7,8 +7,8 @@ if (args.length > 1 || (args.length === 1 && args[0] !== '--check'))
   throw new Error('Uso: node scripts/prepare-map.mjs [--check]');
 
 const SAMPLES = 2;
-const LAND_SPREAD = 0.85;
-const BORDER_SPREAD = 0.8;
+const LAND_SPREAD = 0.78;
+const BORDER_SPREAD = 0.78;
 const PAD = 6;
 const INF = 1e12;
 const DEMO_COUNTRIES = new Set(['ESP', 'MEX', 'JPN']);
@@ -198,19 +198,15 @@ function render(
 
   for (let y = 0; y < SCAN_HEIGHT; y += 1) {
     const row = y * SCAN_WIDTH;
-    const above = Math.max(y - 1, 0) * SCAN_WIDTH;
     const below = Math.min(y + 1, SCAN_HEIGHT - 1) * SCAN_WIDTH;
     for (let x = 0; x < SCAN_WIDTH; x += 1) {
       const country = countries[row + x];
       if (!country) continue;
       landMask[row + x] = 1;
       if (demoIds[country]) demoMask[row + x] = 1;
-      const left = x === 0 ? SCAN_WIDTH - 1 : x - 1;
       const right = x === SCAN_WIDTH - 1 ? 0 : x + 1;
       if (
-        differs(countries[row + left], country) ||
         differs(countries[row + right], country) ||
-        differs(countries[above + x], country) ||
         differs(countries[below + x], country)
       ) {
         borderMask[row + x] = 1;
@@ -262,7 +258,7 @@ function render(
     for (let x = 0; x < WIDTH; x += 1) {
       let landSdSum = 0;
       let demoSdSum = 0;
-      let borderMinDist = INF;
+      let borderDistSum = 0;
 
       for (let sy = 0; sy < SAMPLES; sy += 1) {
         const scanRow = (y * SAMPLES + sy) * SCAN_WIDTH + x * SAMPLES;
@@ -274,13 +270,16 @@ function render(
           demoSdSum += demoMask[i]
             ? Math.sqrt(demoDistIn[i]) - 0.5
             : -(Math.sqrt(demoDistOut[i]) - 0.5);
-          if (borderDist[i] < borderMinDist) borderMinDist = borderDist[i];
+          borderDistSum += Math.sqrt(borderDist[i]);
         }
       }
 
       const landSd = landSdSum * invSamplesSq * invSamples;
       const demoSd = demoSdSum * invSamplesSq * invSamples;
-      const bDist = Math.sqrt(borderMinDist) * invSamples;
+      const bDist = Math.max(
+        0,
+        borderDistSum * invSamplesSq * invSamples - 0.15,
+      );
 
       const l = Math.max(
         0,

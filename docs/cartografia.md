@@ -50,8 +50,8 @@ Es una demostración sintética de la interfaz, no el historial del propietario.
 
 | Archivo                | Dimensiones | Fuente             | Bytes  | Uso                       |
 | ---------------------- | ----------- | ------------------ | ------ | ------------------------- |
-| `atlas-map.png`        | 1024 × 512  | Natural Earth 110m | 22.011 | Carga inicial             |
-| `atlas-map-detail.png` | 2048 × 1024 | Natural Earth 50m  | 63.621 | Carga diferida al acercar |
+| `atlas-map.png`        | 1024 × 512  | Natural Earth 110m | 22.909 | Carga inicial             |
+| `atlas-map-detail.png` | 2048 × 1024 | Natural Earth 50m  | 65.459 | Carga diferida al acercar |
 
 La versión detallada conserva islas y trazados que no aparecen en el mapa
 mundial de 110m. Su mayor resolución y los campos de distancia mantienen costas,
@@ -68,6 +68,6 @@ La regeneración habitual es local y no hace peticiones de red. El script verifi
 los hashes de las fuentes compactas antes de procesarlas.
 
 - SHA-256 de `atlas-map.png`:
-  `9714c5130d84aab66e52d81a587b197e0b5d1baec6d29ef3fe78f40dc3ff2673`.
+  `a57e18ece9400f89dcd442753de73ce018107ee158bc6cddb012d808ec98972f`.
 - SHA-256 de `atlas-map-detail.png`:
-  `c672d837ad957a233706ac45429088d515ede285dc7a38898f5bdf3e76a83345`.
+  `fae616c491b5e2a6fe65b5f17166a0bec64f605141e87cd863c0f9b6140dc2c3`.

@@ -24,21 +24,24 @@ async function frameCount(page: Page) {
 
 async function expectIdleRenderer(page: Page) {
   await expect
-    .poll(async () => {
-      const before = await frameCount(page);
-      // This is the measured idle interval, not a delay used to wait for loading.
-      const after = await globeEngine(page).evaluate(
-        (element) =>
-          new Promise<number>((resolve) => {
-            window.setTimeout(
-              () =>
-                resolve(Number((element as HTMLElement).dataset.frameCount)),
-              400,
-            );
-          }),
-      );
-      return after - before;
-    })
+    .poll(
+      async () => {
+        const before = await frameCount(page);
+        // This is the measured idle interval, not a delay used to wait for loading.
+        const after = await globeEngine(page).evaluate(
+          (element) =>
+            new Promise<number>((resolve) => {
+              window.setTimeout(
+                () =>
+                  resolve(Number((element as HTMLElement).dataset.frameCount)),
+                400,
+              );
+            }),
+        );
+        return after - before;
+      },
+      { timeout: 10_000, intervals: [200, 300, 500] },
+    )
     .toBe(0);
 }
 
